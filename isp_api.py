@@ -198,7 +198,7 @@ def _err(msg) -> dict:
 
 # ── Flask app ─────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:*", "http://127.0.0.1:*"])
+CORS(app)
 
 @app.route("/")
 def index():

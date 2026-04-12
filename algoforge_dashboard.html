@@ -386,7 +386,7 @@ code[class*="language-"]{font-family:'JetBrains Mono',monospace!important}
 
 <!-- JS Part 1: Data + State -->
 <script id="app-data">
-const API_BASE='http://localhost:5051';
+const API_BASE=window.location.origin;
 
 const APP={currentTab:'live',currentFormStep:1,labStepperState:2,labInited:false,historyInited:false,newsInited:false,
 propCheckerOpen:false,propCheckerBot:null,botFilter:{search:'',status:'all'},charts:{},healthAnimated:false,
