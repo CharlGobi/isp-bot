@@ -114,6 +114,29 @@ code[class*="language-"]{font-family:'JetBrains Mono',monospace!important}
 <div class="bg-surface-container rounded-xl p-4 border-l-4 border-outline-variant"><p class="text-[9px] font-mono text-outline uppercase mb-1">Leverage</p><p id="kpi-leverage" class="font-mono text-xl font-bold">1:100</p></div>
 </div>
 
+<!-- CHALLENGE TRACKER -->
+<div class="mb-6 bg-surface-container-low rounded-xl p-5 border border-outline-variant lab-glow">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-sm">flag</span><span class="font-mono text-xs font-bold uppercase tracking-widest">Challenge Tracker</span><span id="challenge-phase-badge" class="px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-primary border-primary/40 bg-primary/10">PHASE 1</span></div>
+<span id="challenge-status-badge" class="px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-outline border-outline-variant">CONNECTING</span>
+</div>
+<div class="mb-4">
+<div class="flex justify-between text-[10px] font-mono mb-1"><span class="text-outline">Profit Progress</span><span id="challenge-progress-text" class="text-on-surface">— / —</span></div>
+<div class="h-3 bg-surface-container-lowest rounded-full overflow-hidden relative">
+<div id="challenge-progress-bar" class="h-full rounded-full transition-all duration-700 bg-secondary" style="width:0%"></div>
+<div class="absolute right-0 top-0 h-full w-px bg-outline-variant/50"></div>
+</div>
+<div class="flex justify-between text-[9px] font-mono text-outline mt-1"><span id="challenge-start-label">Start: $10,000</span><span id="challenge-target-label">Target: —</span></div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+<div class="bg-surface-container rounded-lg p-3 text-center"><p class="text-[9px] font-mono text-outline mb-1">CURRENT P&amp;L</p><p id="ch-pnl" class="font-mono text-base font-bold">—</p><p id="ch-pnl-pct" class="text-[9px] font-mono text-outline">—%</p></div>
+<div class="bg-surface-container rounded-lg p-3 text-center"><p class="text-[9px] font-mono text-outline mb-1">STILL NEEDED</p><p id="ch-needed" class="font-mono text-base font-bold text-primary">—</p><p class="text-[9px] font-mono text-outline">to target</p></div>
+<div class="bg-surface-container rounded-lg p-3 text-center"><p class="text-[9px] font-mono text-outline mb-1">DAYS LEFT</p><p id="ch-days" class="font-mono text-base font-bold">—</p><p id="ch-days-sub" class="text-[9px] font-mono text-outline">of 30</p></div>
+<div class="bg-surface-container rounded-lg p-3 text-center"><p class="text-[9px] font-mono text-outline mb-1">NEEDED/DAY</p><p id="ch-daily" class="font-mono text-base font-bold text-tertiary">—</p><p class="text-[9px] font-mono text-outline">to hit target</p></div>
+<div class="bg-surface-container rounded-lg p-3 text-center"><p class="text-[9px] font-mono text-outline mb-1">PROJECTED</p><p id="ch-projected" class="font-mono text-base font-bold">—</p><p class="text-[9px] font-mono text-outline">at current pace</p></div>
+</div>
+</div>
+
 <!-- C: Prop Compliance -->
 <div class="mb-6">
 <p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Prop Firm Compliance</p>
@@ -261,6 +284,27 @@ code[class*="language-"]{font-family:'JetBrains Mono',monospace!important}
 <table class="w-full text-xs font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[9px] uppercase tracking-widest"><th class="px-4 py-2 text-left">Symbol</th><th class="px-3 py-2 text-right">Trades</th><th class="px-3 py-2 text-right">Win%</th><th class="px-3 py-2 text-right">Net P&amp;L</th><th class="px-3 py-2 text-right">PF</th><th class="px-3 py-2 text-right">Avg Score</th></tr></thead>
 <tbody id="symbol-table-body"><tr><td colspan="6" class="px-4 py-6 text-center text-outline">Connect API for live stats</td></tr></tbody></table>
 </div>
+<!-- Entry Score Distribution -->
+<div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant mb-6 lab-glow">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-sm">star</span><span class="font-mono text-xs font-bold uppercase tracking-widest">Entry Score Distribution</span></div>
+<span id="score-dist-note" class="text-[9px] font-mono text-outline"></span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<div class="relative h-52"><canvas id="score-dist-chart"></canvas></div>
+<div>
+<table class="w-full text-xs font-mono">
+<thead><tr class="text-outline text-[9px] uppercase tracking-widest border-b border-outline-variant/50"><th class="pb-2 text-left">Score</th><th class="pb-2 text-right">Trades</th><th class="pb-2 text-right">Win%</th><th class="pb-2 text-right">Avg P&L</th><th class="pb-2 text-right">Verdict</th></tr></thead>
+<tbody id="score-dist-body"><tr><td colspan="5" class="py-6 text-center text-outline">Awaiting history data…</td></tr></tbody>
+</table>
+<div class="mt-3 p-3 bg-surface-container rounded-lg" id="score-best-box" style="display:none">
+<p class="text-[9px] font-mono text-outline mb-1">BEST EDGE</p>
+<p id="score-best-label" class="font-mono text-sm font-bold text-secondary">—</p>
+<p id="score-best-detail" class="text-[9px] font-mono text-outline mt-0.5"></p>
+</div>
+</div>
+</div>
+</div>
 <!-- Code Preview -->
 <div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant lab-glow"><div class="flex items-center justify-between px-5 py-3 border-b border-outline-variant"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-primary text-sm">code</span><span class="font-mono text-xs font-bold">ISP_V3_ENTRY_SCORE.mq5</span></div><button id="copy-btn" onclick="copyCode()" class="flex items-center gap-2 text-xs font-mono text-outline hover:text-on-surface border border-outline-variant px-3 py-1 rounded hover:bg-surface-container-high"><span id="copy-icon" class="material-symbols-outlined text-sm">content_copy</span><span id="copy-label">Copy</span></button></div><pre><code id="code-preview" class="language-clike"></code></pre></div>
 </div>
@@ -392,7 +436,7 @@ const APP={currentTab:'live',currentFormStep:1,labStepperState:2,labInited:false
 propCheckerOpen:false,propCheckerBot:null,botFilter:{search:'',status:'all'},charts:{},healthAnimated:false,
 apiConnected:false,apiErrors:{},lastUpdate:null};
 
-const LIVE_DATA={status:null,account:null,trades:null,compliance:null,session:null,history:null,sentiment:null,news:null};
+const LIVE_DATA={status:null,account:null,trades:null,compliance:null,session:null,history:null,sentiment:null,news:null,challenge:null};
 
 const DEMO_DATA={
 equityCurve:[{label:'Jan 24',v:10000},{label:'Feb 24',v:10340},{label:'Mar 24',v:10180},{label:'Apr 24',v:10720},{label:'May 24',v:10510},{label:'Jun 24',v:11240},{label:'Jul 24',v:11680},{label:'Aug 24',v:11420},{label:'Sep 24',v:12100},{label:'Oct 24',v:12780},{label:'Nov 24',v:12490},{label:'Dec 24',v:13150},{label:'Jan 25',v:13600},{label:'Feb 25',v:13920},{label:'Mar 25',v:14280}],
@@ -612,9 +656,91 @@ else{pill.textContent='CONNECTING';pill.className='px-2 py-0.5 text-[9px] font-m
 const POLL_CONFIG=[
 {fn:pollStatus,interval:15000},{fn:pollAccount,interval:5000},{fn:pollTrades,interval:5000},
 {fn:pollCompliance,interval:5000},{fn:pollSession,interval:30000},{fn:pollHistory,interval:120000},
-{fn:pollSentiment,interval:300000},{fn:pollNews,interval:3600000}];
+{fn:pollChallenge,interval:30000},{fn:pollSentiment,interval:300000},{fn:pollNews,interval:3600000}];
 let pollTimers=[];
 function startPolling(){POLL_CONFIG.forEach(p=>{p.fn();pollTimers.push(setInterval(p.fn,p.interval))})}
+
+// ── Challenge Tracker ──
+async function pollChallenge(){try{const d=await apiFetch(API_BASE+'/api/challenge');LIVE_DATA.challenge=d;renderProfitTarget(d)}catch(e){}}
+
+function renderProfitTarget(c){
+if(!c)return;
+// Phase badge
+document.getElementById('challenge-phase-badge').textContent='PHASE '+c.phase;
+// Status badge
+const onTrack=c.on_track;const badge=document.getElementById('challenge-status-badge');
+badge.textContent=onTrack?'ON TRACK':'OFF TRACK';
+badge.className='px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border '+(onTrack?'text-secondary border-secondary/40 bg-secondary/10':'text-error border-error/40 bg-error/10');
+// Progress bar
+const pct=Math.max(0,Math.min(100,c.progress_pct||0));
+const bar=document.getElementById('challenge-progress-bar');
+bar.style.width=pct+'%';
+bar.style.background=pct>=100?'#69f6b8':pct>=60?'#699cff':pct>=30?'#FFD740':'#ff6e84';
+document.getElementById('challenge-progress-text').textContent=`$${c.current_pnl>=0?'+':''}${c.current_pnl.toFixed(2)} / $${c.pnl_needed.toFixed(2)} (${pct.toFixed(1)}%)`;
+document.getElementById('challenge-start-label').textContent=`Start: $${c.start_balance.toLocaleString()} · Day ${c.days_used}`;
+document.getElementById('challenge-target-label').textContent=`Target: $${c.target_balance.toLocaleString()} (${c.target_pct}%)`;
+// Stats
+const pnlEl=document.getElementById('ch-pnl');
+pnlEl.textContent=(c.current_pnl>=0?'+$':'$')+Math.abs(c.current_pnl).toFixed(2);
+pnlEl.className='font-mono text-base font-bold '+(c.current_pnl>=0?'text-secondary':'text-error');
+document.getElementById('ch-pnl-pct').textContent=(c.current_pnl_pct>=0?'+':'')+c.current_pnl_pct.toFixed(2)+'%';
+const neededEl=document.getElementById('ch-needed');
+neededEl.textContent=c.pnl_still_needed>0?'+$'+c.pnl_still_needed.toFixed(2):'TARGET HIT!';
+neededEl.className='font-mono text-base font-bold '+(c.pnl_still_needed>0?'text-primary':'text-secondary');
+const daysEl=document.getElementById('ch-days');
+daysEl.textContent=c.days_remaining;
+daysEl.className='font-mono text-base font-bold '+(c.days_remaining<=5?'text-error':c.days_remaining<=10?'text-tertiary':'text-on-surface');
+document.getElementById('ch-days-sub').textContent=`of ${c.days_total} days`;
+const dailyEl=document.getElementById('ch-daily');
+dailyEl.textContent=c.daily_needed>0?'$'+c.daily_needed.toFixed(2):c.days_remaining===0?'—':'DONE';
+dailyEl.className='font-mono text-base font-bold '+(c.daily_needed>c.start_balance*0.03?'text-error':'text-tertiary');
+const projEl=document.getElementById('ch-projected');
+projEl.textContent=(c.projected_pnl>=0?'+$':'$')+Math.abs(c.projected_pnl).toFixed(2);
+projEl.className='font-mono text-base font-bold '+(c.projected_pnl>=c.pnl_needed?'text-secondary':c.projected_pnl>=0?'text-tertiary':'text-error');}
+
+// ── Entry Score Distribution ──
+function renderScoreDistribution(){
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);
+if(!deals.length){document.getElementById('score-dist-body').innerHTML='<tr><td colspan="5" class="py-6 text-center text-outline">No trade history yet</td></tr>';return;}
+// Score buckets: 0, 1-3, 4-5, 6-7, 8-9, 10
+const buckets=[
+{label:'Score 0',min:0,max:0.9},{label:'1 – 3',min:1,max:3.9},
+{label:'4 – 5',min:4,max:5.9},{label:'6 – 7',min:6,max:7.9},
+{label:'8 – 9',min:8,max:9.9},{label:'10',min:10,max:10}];
+const stats=buckets.map(b=>{
+const ts=deals.filter(d=>d.score>=b.min&&d.score<=b.max);
+const wins=ts.filter(d=>d.profit>0);
+const avgPnl=ts.length?ts.reduce((s,d)=>s+d.profit,0)/ts.length:0;
+return{label:b.label,trades:ts.length,wins:wins.length,winRate:ts.length?wins.length/ts.length*100:0,avgPnl}});
+// Note about score 0 (EA may not be writing scores)
+const zeroTrades=stats[0].trades;const totalWithScore=deals.filter(d=>d.score>0).length;
+const noteEl=document.getElementById('score-dist-note');
+if(zeroTrades===deals.length)noteEl.textContent='⚠ All scores = 0 — EA comment may not include score yet';
+else if(zeroTrades>totalWithScore)noteEl.textContent=`${zeroTrades} unscored trades — partial score data`;
+else noteEl.textContent=`${totalWithScore} scored trades`;
+// Table
+const tbody=document.getElementById('score-dist-body');
+tbody.innerHTML=stats.filter(s=>s.trades>0).map(s=>{
+const wr=s.winRate.toFixed(0);const pColor=s.avgPnl>=0?'text-secondary':'text-error';
+const verdict=s.winRate>=55?'<span class="text-secondary">TRADE</span>':s.winRate>=40?'<span class="text-tertiary">CAUTION</span>':'<span class="text-error">AVOID</span>';
+return`<tr class="border-b border-outline-variant/30"><td class="py-2 font-bold">${s.label}</td><td class="py-2 text-right">${s.trades}</td><td class="py-2 text-right ${+wr>=50?'text-secondary':'text-error'}">${wr}%</td><td class="py-2 text-right ${pColor}">${s.avgPnl>=0?'+$':'$'}${Math.abs(s.avgPnl).toFixed(2)}</td><td class="py-2 text-right">${verdict}</td></tr>`}).join('');
+// Best bucket
+const best=stats.filter(s=>s.trades>=3).sort((a,b)=>b.winRate-a.winRate)[0];
+const bestBox=document.getElementById('score-best-box');
+if(best){bestBox.style.display='block';document.getElementById('score-best-label').textContent=`Score ${best.label} → ${best.winRate.toFixed(0)}% win rate`;document.getElementById('score-best-detail').textContent=`${best.trades} trades · Avg P&L ${best.avgPnl>=0?'+$':'$'}${Math.abs(best.avgPnl).toFixed(2)} per trade`}
+else bestBox.style.display='none';
+// Chart
+initScoreDistChart(stats);}
+
+function initScoreDistChart(stats){
+const ctx=document.getElementById('score-dist-chart').getContext('2d');
+if(APP.charts.scoreDist){APP.charts.scoreDist.destroy();APP.charts.scoreDist=null;}
+const active=stats.filter(s=>s.trades>0);
+if(!active.length)return;
+APP.charts.scoreDist=new Chart(ctx,{type:'bar',data:{labels:active.map(s=>s.label),datasets:[
+{label:'Wins',data:active.map(s=>s.wins),backgroundColor:'rgba(105,246,184,.7)',borderColor:'#69f6b8',borderWidth:1,borderRadius:3},
+{label:'Losses',data:active.map(s=>s.trades-s.wins),backgroundColor:'rgba(255,110,132,.7)',borderColor:'#ff6e84',borderWidth:1,borderRadius:3}]},
+options:{responsive:true,maintainAspectRatio:false,animation:{duration:700},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1,callbacks:{footer:items=>{const s=active[items[0].dataIndex];return`Win Rate: ${s.winRate.toFixed(0)}%`}}}},scales:{x:{stacked:true,grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9}}},y:{stacked:true,grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},stepSize:1}}}}})}
 
 // ── Performance Lab History KPIs ──
 function renderHistoryKPIs(){
@@ -638,8 +764,8 @@ stb.innerHTML=Object.entries(symbols).map(([sym,s])=>{const wr=(s.wins/s.trades*
 return `<tr class="hover:bg-surface-container transition-colors"><td class="px-4 py-2.5 font-bold">${sym}</td><td class="px-3 py-2.5 text-right">${s.trades}</td><td class="px-3 py-2.5 text-right ${+wr>=50?'text-secondary':'text-error'}">${wr}%</td><td class="px-3 py-2.5 text-right ${s.profit>=0?'text-secondary':'text-error'}">${s.profit>=0?'+':''}$${s.profit.toFixed(2)}</td><td class="px-3 py-2.5 text-right">${spf}</td><td class="px-3 py-2.5 text-right">${sa}</td></tr>`}).join('')}
 
 // ── Lab Tab Init ──
-function initLabTab(){renderStepper();initEquityCurve();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);initHeatmap();initCodePreview()}
-function refreshLabCharts(){if(!APP.labInited)return;initEquityCurve();initHeatmap();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);}
+function initLabTab(){renderStepper();initEquityCurve();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);initHeatmap();renderScoreDistribution();initCodePreview()}
+function refreshLabCharts(){if(!APP.labInited)return;initEquityCurve();initHeatmap();renderScoreDistribution();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);}
 
 function renderStepper(){
 const h=LIVE_DATA.history;const st=LIVE_DATA.status;

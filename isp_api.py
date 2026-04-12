@@ -39,6 +39,10 @@ SENTIMENT_PORT = int(os.getenv("SENTIMENT_PORT", "5050"))
 DAILY_DD_LIMIT = float(os.getenv("DAILY_DD_LIMIT", "3.0"))
 MAX_DD_LIMIT   = float(os.getenv("MAX_DD_LIMIT",   "8.0"))
 CHALLENGE_START_BALANCE = float(os.getenv("CHALLENGE_START_BALANCE", "10000"))
+CHALLENGE_START_DATE   = os.getenv("CHALLENGE_START_DATE", "")   # e.g. 2026-01-01
+CHALLENGE_TARGET_PCT   = float(os.getenv("CHALLENGE_TARGET_PCT",  "8.0"))
+CHALLENGE_MAX_DAYS     = int(os.getenv("CHALLENGE_MAX_DAYS",      "30"))
+CHALLENGE_PHASE        = int(os.getenv("CHALLENGE_PHASE",         "1"))
 
 MAGIC_MAP = {
     "EURUSD": int(os.getenv("MAGIC_EURUSD", "202601")),
@@ -549,6 +553,78 @@ def api_session():
         }
         return jsonify(_ok(sessions))
     except Exception as e:
+        return jsonify(_err(str(e)))
+
+# ── /api/challenge ────────────────────────────────────────────
+@app.route("/api/challenge")
+def api_challenge():
+    try:
+        # Parse start date
+        today = datetime.now(timezone.utc).date()
+        if CHALLENGE_START_DATE:
+            try:
+                start = datetime.strptime(CHALLENGE_START_DATE, "%Y-%m-%d").date()
+            except ValueError:
+                start = today
+        else:
+            start = today
+
+        days_used      = max(0, (today - start).days)
+        days_remaining = max(0, CHALLENGE_MAX_DAYS - days_used)
+        target_balance = round(CHALLENGE_START_BALANCE * (1 + CHALLENGE_TARGET_PCT / 100), 2)
+        pnl_needed     = round(target_balance - CHALLENGE_START_BALANCE, 2)
+
+        # Get current balance
+        current_balance = CHALLENGE_START_BALANCE
+        if MT5_AVAILABLE and _mt5_connected:
+            res = _call_mt5(lambda m: m.account_info())
+            if res["ok"] and res["data"]:
+                current_balance = round(res["data"].balance, 2)
+
+        current_pnl     = round(current_balance - CHALLENGE_START_BALANCE, 2)
+        current_pnl_pct = round(current_pnl / CHALLENGE_START_BALANCE * 100, 3)
+        progress_pct    = round(current_pnl / pnl_needed * 100, 1) if pnl_needed else 0
+        pnl_still_needed = round(pnl_needed - current_pnl, 2)
+
+        # Daily rate needed
+        if days_remaining > 0:
+            daily_needed     = round(pnl_still_needed / days_remaining, 2)
+            daily_needed_pct = round(daily_needed / CHALLENGE_START_BALANCE * 100, 3)
+        else:
+            daily_needed     = 0
+            daily_needed_pct = 0
+
+        # Projected end P&L at current daily pace
+        avg_daily = round(current_pnl / days_used, 2) if days_used > 0 else 0
+        projected_pnl = round(current_pnl + avg_daily * days_remaining, 2)
+        projected_pnl_pct = round(projected_pnl / CHALLENGE_START_BALANCE * 100, 2)
+
+        on_track = projected_pnl >= pnl_needed
+
+        return jsonify(_ok({
+            "phase":             CHALLENGE_PHASE,
+            "start_date":        start.isoformat(),
+            "start_balance":     CHALLENGE_START_BALANCE,
+            "target_pct":        CHALLENGE_TARGET_PCT,
+            "target_balance":    target_balance,
+            "pnl_needed":        pnl_needed,
+            "current_balance":   current_balance,
+            "current_pnl":       current_pnl,
+            "current_pnl_pct":   current_pnl_pct,
+            "progress_pct":      progress_pct,
+            "pnl_still_needed":  pnl_still_needed,
+            "days_total":        CHALLENGE_MAX_DAYS,
+            "days_used":         days_used,
+            "days_remaining":    days_remaining,
+            "daily_needed":      daily_needed,
+            "daily_needed_pct":  daily_needed_pct,
+            "avg_daily":         avg_daily,
+            "projected_pnl":     projected_pnl,
+            "projected_pnl_pct": projected_pnl_pct,
+            "on_track":          on_track,
+        }))
+    except Exception as e:
+        log.exception("challenge endpoint error")
         return jsonify(_err(str(e)))
 
 # ── /api/sentiment (proxy to avoid CORS) ──────────────────────
