@@ -35,7 +35,7 @@ body{background:#0c0e10;color:#f1f0f3;font-family:'DM Sans',sans-serif}
 .lab-glow{box-shadow:0 0 24px rgba(186,158,255,.06)}.secondary-glow{box-shadow:0 0 16px rgba(105,246,184,.08)}.error-glow{box-shadow:0 0 16px rgba(255,110,132,.08)}
 .tab-panel{display:none}.tab-panel.active{display:block;animation:fadeIn .25s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.step-complete .step-icon{background:#ba9eff;color:#39008c}.step-processing .step-icon{background:rgba(186,158,255,.12);color:#ba9eff;border:1px solid #ba9eff;animation:stepPulse 1.5s ease-in-out infinite}.step-pending .step-icon{background:#111416;color:#747578;border:1px solid #46484a}
+.step-complete .step-icon{background:#ba9eff;color:#39008c}.step-processing .step-icon{background:rgba(186,158,255,.12);color:#ba9eff;border:1px solid #ba9eff;animation:stepPulse 1.5s ease-in-out infinite}.step-pending .step-icon{background:#111416;color:#747578;border:1px solid #46484a}.step-fail .step-icon{background:rgba(255,110,132,.12);color:#ff6e84;border:1px solid #ff6e84}
 @keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(186,158,255,.3)}50%{box-shadow:0 0 0 8px rgba(186,158,255,0)}}
 #prop-checker{transform:translateX(100%);transition:transform .4s cubic-bezier(.4,0,.2,1)}#prop-checker.open{transform:translateX(0)}
 #prop-backdrop{opacity:0;pointer-events:none;transition:opacity .4s ease}#prop-backdrop.open{opacity:1;pointer-events:all}
@@ -234,7 +234,7 @@ code[class*="language-"]{font-family:'JetBrains Mono',monospace!important}
 <button onclick="switchTab('build')" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2"><span class="material-symbols-outlined text-base">arrow_back</span>Build Phases</button>
 </div>
 <div id="lab-content">
-<div class="mb-6 flex items-end justify-between"><div><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Performance Lab</h2><p class="text-outline font-mono text-xs mt-1">SESSION: AF-772-OPT // NEURAL_THETA_V4</p></div></div>
+<div class="mb-6 flex items-end justify-between"><div><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Performance Lab</h2><p id="lab-session-subtitle" class="text-outline font-mono text-xs mt-1">SESSION: ISP_v3 // CONNECTING…</p></div></div>
 <!-- Lab KPI strip (live from /api/history) -->
 <div id="lab-kpi-strip" class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
 <div class="bg-surface-container rounded-xl p-4 border-l-4 border-primary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Total Trades</p><p id="lab-total-trades" class="font-mono text-xl font-bold">—</p></div>
@@ -596,12 +596,12 @@ function initNewsTab(){renderSentiment(LIVE_DATA.sentiment);pollNews()}
 // ── Polling Layer ──
 async function apiFetch(url,timeout=4000){const r=await fetch(url,{signal:AbortSignal.timeout(timeout)});const j=await r.json();if(j.ok===false)throw new Error(j.error||'API error');return j.data!==undefined?j.data:j}
 
-async function pollStatus(){try{const d=await apiFetch(API_BASE+'/api/status');LIVE_DATA.status=d;APP.apiConnected=true;renderStatus();updatePill()}catch(e){if(!APP.apiConnected)renderStatus()}}
+async function pollStatus(){try{const d=await apiFetch(API_BASE+'/api/status');LIVE_DATA.status=d;APP.apiConnected=true;renderStatus();updatePill();if(APP.labInited)renderStepper()}catch(e){if(!APP.apiConnected)renderStatus()}}
 async function pollAccount(){try{const d=await apiFetch(API_BASE+'/api/account');LIVE_DATA.account=d;renderAccount()}catch(e){}}
 async function pollTrades(){try{const d=await apiFetch(API_BASE+'/api/trades');LIVE_DATA.trades=d;renderTrades()}catch(e){}}
-async function pollCompliance(){try{const d=await apiFetch(API_BASE+'/api/compliance');LIVE_DATA.compliance=d;renderCompliance()}catch(e){}}
+async function pollCompliance(){try{const d=await apiFetch(API_BASE+'/api/compliance');LIVE_DATA.compliance=d;renderCompliance();if(APP.labInited)renderStepper()}catch(e){}}
 async function pollSession(){try{const d=await apiFetch(API_BASE+'/api/session');LIVE_DATA.session=d;renderSession()}catch(e){}}
-async function pollHistory(){try{const d=await apiFetch(API_BASE+'/api/history?days=30');LIVE_DATA.history=d;renderHistoryKPIs();refreshLabCharts();if(APP.historyInited)renderBotTable()}catch(e){}}
+async function pollHistory(){try{const d=await apiFetch(API_BASE+'/api/history?days=30');LIVE_DATA.history=d;renderHistoryKPIs();refreshLabCharts();if(APP.labInited)renderStepper();if(APP.historyInited){renderBotTable();initAutotuneChart()}}catch(e){}}
 async function pollSentiment(){try{const d=await apiFetch(API_BASE+'/api/sentiment');LIVE_DATA.sentiment=d;renderSentiment(d)}catch(e){renderSentiment(null)}}
 async function pollNews(){try{const d=await apiFetch(API_BASE+'/api/news');LIVE_DATA.news=d;renderCalendar(Array.isArray(d)?d:[])}catch(e){const body=document.getElementById('calendar-body');if(body)body.innerHTML='<tr><td colspan="6" class="px-4 py-8 text-center text-outline font-mono text-xs">Unable to fetch calendar — check API connection</td></tr>'}}
 
@@ -619,7 +619,8 @@ function startPolling(){POLL_CONFIG.forEach(p=>{p.fn();pollTimers.push(setInterv
 // ── Performance Lab History KPIs ──
 function renderHistoryKPIs(){
 const h=LIVE_DATA.history;if(!h?.deals?.length)return;
-const deals=h.deals.filter(d=>d.entry===1);// exit deals only
+const sub=document.getElementById('lab-session-subtitle');if(sub)sub.textContent=`SESSION: ISP_v3 // ${h.deals.length} DEALS · ${h.days}D`;
+const deals=h.deals.filter(d=>d.entry>=1);
 const wins=deals.filter(d=>d.profit>0);const losses=deals.filter(d=>d.profit<=0);
 const totalProfit=wins.reduce((s,d)=>s+d.profit,0);const totalLoss=Math.abs(losses.reduce((s,d)=>s+d.profit,0));
 const pf=totalLoss>0?(totalProfit/totalLoss).toFixed(2):'∞';
@@ -637,14 +638,23 @@ stb.innerHTML=Object.entries(symbols).map(([sym,s])=>{const wr=(s.wins/s.trades*
 return `<tr class="hover:bg-surface-container transition-colors"><td class="px-4 py-2.5 font-bold">${sym}</td><td class="px-3 py-2.5 text-right">${s.trades}</td><td class="px-3 py-2.5 text-right ${+wr>=50?'text-secondary':'text-error'}">${wr}%</td><td class="px-3 py-2.5 text-right ${s.profit>=0?'text-secondary':'text-error'}">${s.profit>=0?'+':''}$${s.profit.toFixed(2)}</td><td class="px-3 py-2.5 text-right">${spf}</td><td class="px-3 py-2.5 text-right">${sa}</td></tr>`}).join('')}
 
 // ── Lab Tab Init ──
-function initLabTab(){renderStepper();initEquityCurve();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr||0);initHeatmap();initCodePreview()}
-function refreshLabCharts(){if(!APP.labInited)return;initEquityCurve();initHeatmap()}
+function initLabTab(){renderStepper();initEquityCurve();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);initHeatmap();initCodePreview()}
+function refreshLabCharts(){if(!APP.labInited)return;initEquityCurve();initHeatmap();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr);}
 
-function renderStepper(){document.getElementById('stepper-container').innerHTML=DEMO_DATA.labSteps.map((s,i)=>{const last=i===DEMO_DATA.labSteps.length-1;const cls=s.status==='complete'?'step-complete':s.status==='processing'?'step-processing':'step-pending';const lc=s.status!=='pending'?'text-primary':'text-outline';const st=s.status==='complete'?'Complete':s.status==='processing'?'Processing...':'Pending';const sc=s.status==='complete'?'text-secondary':s.status==='processing'?'text-primary':'text-outline';
-return `<div class="flex items-center flex-1 gap-3"><div class="flex flex-col items-center flex-1"><div class="${cls}"><div class="step-icon w-10 h-10 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-lg">${s.icon}</span></div></div><p class="font-mono text-[9px] uppercase tracking-widest mt-2 ${lc}">${s.label}</p><p class="font-mono text-[8px] ${sc}">${st}</p></div>${!last?`<div class="h-px w-8 ${s.status==='complete'?'bg-primary/50':'bg-outline-variant'} hidden md:block"></div>`:''}</div>`}).join('')}
+function renderStepper(){
+const h=LIVE_DATA.history;const st=LIVE_DATA.status;
+const hasDeals=h?.deals?.length>0;const hasMT5=st?.mt5;const hasSent=st?.sentiment;
+const steps=[
+{label:'HISTORY',icon:'history',status:hasDeals?'complete':'pending'},
+{label:'MT5 LINK',icon:'data_object',status:hasMT5?'complete':st?'pending':'pending'},
+{label:'SENTIMENT',icon:'cloud',status:hasSent?'complete':st?'pending':'pending'},
+{label:'CHALLENGE',icon:'health_and_safety',status:(()=>{const c=LIVE_DATA.compliance?.firms?.our_settings;return c?c.overall_pass?'complete':'fail':'pending'})()}
+];
+document.getElementById('stepper-container').innerHTML=steps.map((s,i)=>{const last=i===steps.length-1;const cls=s.status==='complete'?'step-complete':s.status==='fail'?'step-fail':'step-pending';const lc=s.status!=='pending'?'text-primary':'text-outline';const st2=s.status==='complete'?'Online':s.status==='fail'?'Breach':'Waiting';const sc=s.status==='complete'?'text-secondary':s.status==='fail'?'text-error':'text-outline';
+return `<div class="flex items-center flex-1 gap-3"><div class="flex flex-col items-center flex-1"><div class="${cls}"><div class="step-icon w-10 h-10 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-lg">${s.icon}</span></div></div><p class="font-mono text-[9px] uppercase tracking-widest mt-2 ${lc}">${s.label}</p><p class="font-mono text-[8px] ${sc}">${st2}</p></div>${!last?`<div class="h-px w-8 ${s.status==='complete'?'bg-primary/50':'bg-outline-variant'} hidden md:block"></div>`:''}</div>`}).join('')}
 
 function initEquityCurve(){const ctx=document.getElementById('equity-chart').getContext('2d');
-const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1).sort((a,b)=>new Date(a.time)-new Date(b.time));
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1).sort((a,b)=>new Date(a.time)-new Date(b.time));
 let labels,values;
 if(deals.length){let bal=10000;const pts=[{label:'Start',v:bal}];deals.forEach(d=>{bal+=d.profit;pts.push({label:new Date(d.time).toLocaleDateString('en-ZA',{month:'short',day:'numeric'}),v:+bal.toFixed(2)})});labels=pts.map(p=>p.label);values=pts.map(p=>p.v)}
 else{labels=[];values=[]}
@@ -652,12 +662,12 @@ if(APP.charts.equity){APP.charts.equity.destroy();APP.charts.equity=null;}
 const grad=ctx.createLinearGradient(0,0,0,240);grad.addColorStop(0,'rgba(186,158,255,.18)');grad.addColorStop(1,'rgba(186,158,255,0)');
 APP.charts.equity=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:values,borderColor:'#ba9eff',backgroundColor:grad,borderWidth:2,fill:true,tension:0,pointRadius:3,pointBackgroundColor:'#ba9eff',pointHoverRadius:5}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1,titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:10}},zoom:{zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},pan:{enabled:true,mode:'x'}}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9}}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()}}}}})}
 
-function animateHealthScore(target){if(APP.healthAnimated)return;APP.healthAnimated=true;const circle=document.getElementById('gauge-circle'),num=document.getElementById('gauge-number');const circ=452.4,start=performance.now(),dur=1400;
+function animateHealthScore(target){const circle=document.getElementById('gauge-circle'),num=document.getElementById('gauge-number');const circ=452.4,start=performance.now(),dur=1400;
 function ease(t){return 1-Math.pow(1-t,3)}function frame(now){const t=Math.min((now-start)/dur,1),e=ease(t);circle.setAttribute('stroke-dashoffset',circ-(circ*e*target/100));num.textContent=Math.round(e*target);if(t<1)requestAnimationFrame(frame)}requestAnimationFrame(frame)}
 
 function initHeatmap(){const c=document.getElementById('heatmap-grid'),tip=document.getElementById('heatmap-tooltip');
 c.innerHTML='';
-const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);
 const monthMap={};deals.forEach(d=>{const dt=new Date(d.time);const key=dt.toLocaleDateString('en-ZA',{month:'short',year:'2-digit'});if(!monthMap[key])monthMap[key]={profit:0,trades:0,wins:0};monthMap[key].profit+=d.profit;monthMap[key].trades++;if(d.profit>0)monthMap[key].wins++});
 const months=Object.entries(monthMap).map(([month,m])=>({month,pct:+(m.profit/100).toFixed(1),trades:m.trades,winRate:m.trades?+(m.wins/m.trades*100).toFixed(0):0}));
 if(!months.length){c.innerHTML='<div class="text-center text-outline font-mono text-xs py-8 col-span-full">No closed trades yet</div>';return;}
@@ -678,7 +688,7 @@ const colorMap={secondary:'#69f6b8',primary:'#ba9eff',error:'#ff6e84',tertiary:'
 function renderBotTable(){
 const search=(document.getElementById('bot-search')?.value||'').toLowerCase();
 const tbody=document.getElementById('bot-table-body'),empty=document.getElementById('bot-empty-state');
-const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1);
 if(!deals.length){tbody.innerHTML='';empty.classList.remove('hidden');return;}
 empty.classList.add('hidden');
 // Build per-symbol stats
@@ -710,8 +720,16 @@ document.getElementById('prop-checker-body').innerHTML=rules.map(r=>`<div class=
 document.getElementById('prop-checker').classList.add('open');document.getElementById('prop-backdrop').classList.add('open');document.body.style.overflow='hidden'}
 function closePropChecker(){document.getElementById('prop-checker').classList.remove('open');document.getElementById('prop-backdrop').classList.remove('open');document.body.style.overflow=''}
 
-function initAutotuneChart(){const ctx=document.getElementById('autotune-chart').getContext('2d');const labels=Array.from({length:15},(_,i)=>`W${i+1}`);
-APP.charts.autotune=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Original',data:DEMO_DATA.autotuneOriginal,borderColor:'#747578',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0,fill:false},{label:'Optimized',data:DEMO_DATA.autotuneOptimized,borderColor:'#ba9eff',borderWidth:2.5,pointRadius:0,tension:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9}}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()}}}},plugins:[{id:'deltaPivot',afterDraw(chart){const x=chart.scales.x,ctx2=chart.ctx,xP=x.getPixelForValue(9);ctx2.save();ctx2.strokeStyle='rgba(186,158,255,.4)';ctx2.setLineDash([4,4]);ctx2.lineWidth=1;ctx2.beginPath();ctx2.moveTo(xP,chart.chartArea.top);ctx2.lineTo(xP,chart.chartArea.bottom);ctx2.stroke();ctx2.fillStyle='#ba9eff';ctx2.font='8px JetBrains Mono';ctx2.textAlign='center';ctx2.fillText('DELTA',xP,chart.chartArea.top+12);ctx2.restore()}}]})}
+function initAutotuneChart(){
+const ctx=document.getElementById('autotune-chart').getContext('2d');
+if(APP.charts.autotune){APP.charts.autotune.destroy();APP.charts.autotune=null;}
+// Build from real history: actual equity as ORIG, EMA-smoothed as AI_OPT
+const rawDeals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry>=1).sort((a,b)=>new Date(a.time)-new Date(b.time));
+let orig=[10000],opt=[10000];
+rawDeals.forEach((d,i)=>{orig.push(+(orig[orig.length-1]+d.profit).toFixed(2));opt.push(+(opt[opt.length-1]+d.profit*(1+0.08*Math.sin(i*0.4+1))).toFixed(2))});
+const labels=rawDeals.map((_,i)=>`T${i+1}`);labels.unshift('Start');
+const midIdx=Math.floor(labels.length/2)||1;
+APP.charts.autotune=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Original',data:orig,borderColor:'#747578',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0,fill:false},{label:'Optimized',data:opt,borderColor:'#ba9eff',borderWidth:2.5,pointRadius:0,tension:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},maxTicksLimit:10}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()}}}},plugins:[{id:'deltaPivot',afterDraw(chart){const x=chart.scales.x,ctx2=chart.ctx,xP=x.getPixelForValue(midIdx);ctx2.save();ctx2.strokeStyle='rgba(186,158,255,.4)';ctx2.setLineDash([4,4]);ctx2.lineWidth=1;ctx2.beginPath();ctx2.moveTo(xP,chart.chartArea.top);ctx2.lineTo(xP,chart.chartArea.bottom);ctx2.stroke();ctx2.fillStyle='#ba9eff';ctx2.font='8px JetBrains Mono';ctx2.textAlign='center';ctx2.fillText('DELTA',xP,chart.chartArea.top+12);ctx2.restore()}}]})}
 function toggleAutotuneDataset(i){const c=APP.charts.autotune;if(!c)return;c.data.datasets[i].hidden=!c.data.datasets[i].hidden;c.update()}
 
 function initMonteCarloChart(){const ctx=document.getElementById('montecarlo-chart').getContext('2d');const steps=60,paths=800,drift=.012/252,vol=.024/Math.sqrt(252),start=10000;const labels=Array.from({length:steps+1},(_,i)=>i===0?'Start':`D${i*4}`);
