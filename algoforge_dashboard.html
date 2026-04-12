@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ALGOFORGE | Performance Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+tailwind.config={darkMode:"class",theme:{extend:{
+colors:{"primary":"#ba9eff","secondary":"#69f6b8","error":"#ff6e84","tertiary":"#699cff",
+"background":"#0c0e10","surface":"#0c0e10","surface-container":"#171a1c","surface-container-low":"#111416",
+"surface-container-lowest":"#000000","surface-container-high":"#1d2023","surface-container-highest":"#232629",
+"surface-bright":"#292c30","on-surface":"#f1f0f3","on-surface-variant":"#aaabad","on-background":"#f1f0f3",
+"on-primary":"#39008c","on-secondary":"#005a3c","on-tertiary":"#001e4a","outline":"#747578",
+"outline-variant":"#46484a","secondary-container":"#006c49","on-secondary-container":"#e1ffec",
+"error-container":"#a70138","error-dim":"#d73357","primary-dim":"#8455ef","tertiary-dim":"#699cff",
+"surface-variant":"#232629","inverse-surface":"#f9f9fc","inverse-primary":"#6e3bd7"},
+borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},
+fontFamily:{headline:["Syne","sans-serif"],body:["DM Sans","sans-serif"],label:["DM Sans","sans-serif"],mono:["JetBrains Mono","monospace"]},
+gridTemplateColumns:{13:"repeat(13, minmax(0, 1fr))"}
+}}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<style>
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;display:inline-block;line-height:1;text-transform:none;letter-spacing:normal;word-wrap:normal;white-space:nowrap;direction:ltr}
+body{background:#0c0e10;color:#f1f0f3;font-family:'DM Sans',sans-serif}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:#111416}::-webkit-scrollbar-thumb{background:#46484a;border-radius:2px}
+.lab-glow{box-shadow:0 0 24px rgba(186,158,255,.06)}.secondary-glow{box-shadow:0 0 16px rgba(105,246,184,.08)}.error-glow{box-shadow:0 0 16px rgba(255,110,132,.08)}
+.tab-panel{display:none}.tab-panel.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.step-complete .step-icon{background:#ba9eff;color:#39008c}.step-processing .step-icon{background:rgba(186,158,255,.12);color:#ba9eff;border:1px solid #ba9eff;animation:stepPulse 1.5s ease-in-out infinite}.step-pending .step-icon{background:#111416;color:#747578;border:1px solid #46484a}
+@keyframes stepPulse{0%,100%{box-shadow:0 0 0 0 rgba(186,158,255,.3)}50%{box-shadow:0 0 0 8px rgba(186,158,255,0)}}
+#prop-checker{transform:translateX(100%);transition:transform .4s cubic-bezier(.4,0,.2,1)}#prop-checker.open{transform:translateX(0)}
+#prop-backdrop{opacity:0;pointer-events:none;transition:opacity .4s ease}#prop-backdrop.open{opacity:1;pointer-events:all}
+#gauge-circle{transition:stroke-dashoffset .1s linear}
+#heatmap-tooltip,#sensitivity-tooltip,.af-tooltip{position:fixed;pointer-events:none;z-index:99;background:#1d2023;border:1px solid #46484a;padding:8px 12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:#f1f0f3;border-radius:2px;display:none;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.form-section{display:none}.form-section.active{display:block;animation:fadeIn .2s ease}
+input[type=range]{accent-color:#ba9eff}
+pre[class*="language-"]{margin:0;border-radius:0;background:#111416!important;font-size:12px}
+code[class*="language-"]{font-family:'JetBrains Mono',monospace!important}
+.mobile-nav-btn.active{color:#ba9eff}.mobile-nav-btn.active span{color:#ba9eff}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}
+.status-dot.on{background:#69f6b8;box-shadow:0 0 6px rgba(105,246,184,.6)}.status-dot.off{background:#ff6e84;box-shadow:0 0 6px rgba(255,110,132,.6)}
+.dd-bar{height:6px;border-radius:3px;overflow:hidden;background:#232629}.dd-bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.gate-cell{background:#111416;border:1px solid #232629;border-radius:6px;padding:10px;text-align:center;transition:border-color .3s}
+.gate-cell.pass{border-color:rgba(105,246,184,.3)}.gate-cell.fail{border-color:rgba(255,110,132,.3)}.gate-cell.na{opacity:.5}
+.sentiment-bar{height:4px;border-radius:2px;background:#232629;position:relative;overflow:visible}
+.sentiment-fill{height:100%;border-radius:2px;position:absolute;top:0}
+.news-alert{animation:newsFlash 2s ease-in-out infinite}
+@keyframes newsFlash{0%,100%{opacity:1}50%{opacity:.7}}
+</style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary selection:text-on-primary">
+<div class="hidden border-secondary border-error border-primary border-tertiary text-secondary text-error text-primary text-tertiary bg-secondary/10 bg-error/10 bg-tertiary/10 bg-primary/10 border-secondary/30 border-error/30"></div>
+
+<!-- Trial Banner -->
+<div id="trial-banner" class="bg-primary/10 border-b border-primary/20 px-6 py-2 flex items-center justify-between text-xs font-mono z-50 relative">
+<div class="flex items-center gap-3"><span class="material-symbols-outlined text-primary text-sm">timer</span>
+<span class="text-on-surface-variant">TRIAL MODE — <span id="trial-days" class="text-primary font-bold">14 DAYS</span> — Upgrade for live trading &amp; multi-bot.</span></div>
+<button onclick="dismissTrialBanner()" class="text-outline hover:text-on-surface"><span class="material-symbols-outlined text-base">close</span></button>
+</div>
+
+<!-- Top App Bar -->
+<header id="app-bar" class="fixed top-0 w-full z-40 bg-[#0c0e10] flex items-center justify-between px-4 py-2.5 border-l-4 border-primary shadow-[0_0_24px_rgba(186,158,255,0.06)]" style="top:36px">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center border border-outline-variant"><span class="material-symbols-outlined text-primary text-base">smart_toy</span></div>
+<h1 class="font-headline font-bold text-primary tracking-tighter text-lg">ALGOFORGE</h1>
+</div>
+<nav class="hidden md:flex gap-0.5 items-center font-headline uppercase tracking-widest text-[10px]">
+<button data-tab="live" onclick="switchTab('live')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">Live System</button>
+<button data-tab="build" onclick="switchTab('build')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">Build Phases</button>
+<button data-tab="lab" onclick="switchTab('lab')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">Perf Lab</button>
+<button data-tab="history" onclick="switchTab('history')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">Bot History</button>
+<button data-tab="prop" onclick="switchTab('prop')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">Prop Rules</button>
+<button data-tab="news" onclick="switchTab('news')" class="tab-btn px-3 py-2 transition-colors hover:bg-surface-container-high">News</button>
+</nav>
+<div class="flex items-center gap-2">
+<span id="api-pill" class="px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-outline border-outline-variant">DEMO</span>
+<span id="last-update" class="text-[9px] font-mono text-outline hidden">--:--</span>
+<span class="material-symbols-outlined text-primary text-base cursor-pointer hover:opacity-80">monitor_heart</span>
+</div>
+</header>
+
+<main id="main-content" class="pt-24 pb-24 px-4 md:px-6 max-w-7xl mx-auto" style="padding-top:100px">
+
+<!-- ═══ TAB: LIVE SYSTEM ═══ -->
+<div id="tab-live" class="tab-panel active">
+<div class="mb-6"><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Live System</h2>
+<p class="text-outline font-mono text-xs mt-1">ISP Command Center — Prop Challenge Tracker</p></div>
+
+<!-- A: System Health -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+<div class="bg-surface-container rounded-lg px-4 py-3 flex items-center gap-3"><span id="dot-api" class="status-dot off"></span><div><p class="text-[10px] font-mono text-outline uppercase">API Server</p><p id="lbl-api" class="text-xs font-mono text-error">OFFLINE</p></div></div>
+<div class="bg-surface-container rounded-lg px-4 py-3 flex items-center gap-3"><span id="dot-mt5" class="status-dot off"></span><div><p class="text-[10px] font-mono text-outline uppercase">MT5 Terminal</p><p id="lbl-mt5" class="text-xs font-mono text-error">OFFLINE</p></div></div>
+<div class="bg-surface-container rounded-lg px-4 py-3 flex items-center gap-3"><span id="dot-sent" class="status-dot off"></span><div><p class="text-[10px] font-mono text-outline uppercase">Sentiment Svc</p><p id="lbl-sent" class="text-xs font-mono text-error">OFFLINE</p></div></div>
+<div class="bg-surface-container rounded-lg px-4 py-3 flex items-center gap-3"><span id="dot-mon" class="status-dot off"></span><div><p class="text-[10px] font-mono text-outline uppercase">EA Monitor</p><p id="lbl-mon" class="text-xs font-mono text-error">OFFLINE</p></div></div>
+<div class="bg-surface-container rounded-lg px-4 py-3 flex items-center gap-3"><span id="dot-ea" class="status-dot off"></span><div><p class="text-[10px] font-mono text-outline uppercase">EA Logging</p><p id="lbl-ea" class="text-xs font-mono text-outline">IDLE</p></div></div>
+</div>
+
+<!-- B: Account KPIs -->
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-primary lab-glow"><p class="text-[9px] font-mono text-outline uppercase mb-1">Balance</p><p id="kpi-balance" class="font-mono text-xl font-bold">$10,000</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-primary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Equity</p><p id="kpi-equity" class="font-mono text-xl font-bold">$10,000</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-secondary secondary-glow"><p class="text-[9px] font-mono text-outline uppercase mb-1">Day P&amp;L</p><p id="kpi-daypnl" class="font-mono text-xl font-bold text-on-surface-variant">$0.00</p><p id="kpi-daypnl-pct" class="text-[10px] font-mono text-outline">0.00%</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-tertiary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Open P&amp;L</p><p id="kpi-openpnl" class="font-mono text-xl font-bold text-on-surface-variant">$0.00</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-outline-variant"><p class="text-[9px] font-mono text-outline uppercase mb-1">Free Margin</p><p id="kpi-margin" class="font-mono text-xl font-bold">$10,000</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-outline-variant"><p class="text-[9px] font-mono text-outline uppercase mb-1">Leverage</p><p id="kpi-leverage" class="font-mono text-xl font-bold">1:100</p></div>
+</div>
+
+<!-- C: Prop Compliance -->
+<div class="mb-6">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Prop Firm Compliance</p>
+<div class="grid grid-cols-1 lg:grid-cols-5 gap-3">
+<!-- Our Settings (large) -->
+<div class="lg:col-span-2 bg-surface-container-low rounded-xl p-5 border border-outline-variant lab-glow">
+<div class="flex items-center justify-between mb-4"><span class="font-headline font-bold text-sm">Our EA Settings</span><span id="comp-overall" class="px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-secondary border-secondary/40 bg-secondary/10">CHALLENGE OK</span></div>
+<div class="space-y-3">
+<div><div class="flex justify-between text-[10px] font-mono mb-1"><span class="text-outline">Daily DD</span><span id="comp-daily-nums" class="text-on-surface">0.000% / 3.0%</span></div><div class="dd-bar"><div id="comp-daily-bar" class="dd-bar-fill bg-secondary" style="width:0%"></div></div><p id="comp-daily-buffer" class="text-[9px] font-mono text-outline mt-1">Buffer: 3.000%</p></div>
+<div><div class="flex justify-between text-[10px] font-mono mb-1"><span class="text-outline">Max DD</span><span id="comp-max-nums" class="text-on-surface">0.000% / 8.0%</span></div><div class="dd-bar"><div id="comp-max-bar" class="dd-bar-fill bg-secondary" style="width:0%"></div></div><p id="comp-max-buffer" class="text-[9px] font-mono text-outline mt-1">Buffer: 8.000%</p></div>
+</div></div>
+<!-- 4 Prop Firms -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50"><div class="flex items-center justify-between mb-2"><span class="font-mono text-xs font-bold">FTMO</span><span id="firm-ftmo" class="px-2 py-0.5 text-[8px] font-mono uppercase rounded-sm border text-secondary border-secondary/30 bg-secondary/10">PASS</span></div><p class="text-[9px] font-mono text-outline">Daily 5% / Max 10%</p></div>
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50"><div class="flex items-center justify-between mb-2"><span class="font-mono text-xs font-bold">E8 Markets</span><span id="firm-e8" class="px-2 py-0.5 text-[8px] font-mono uppercase rounded-sm border text-secondary border-secondary/30 bg-secondary/10">PASS</span></div><p class="text-[9px] font-mono text-outline">Daily 4% / Max 8%</p></div>
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50"><div class="flex items-center justify-between mb-2"><span class="font-mono text-xs font-bold">FundedNext</span><span id="firm-fn" class="px-2 py-0.5 text-[8px] font-mono uppercase rounded-sm border text-secondary border-secondary/30 bg-secondary/10">PASS</span></div><p class="text-[9px] font-mono text-outline">Daily 5% / Max 10%</p></div>
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50"><div class="flex items-center justify-between mb-2"><span class="font-mono text-xs font-bold">The5ers</span><span id="firm-5ers" class="px-2 py-0.5 text-[8px] font-mono uppercase rounded-sm border text-secondary border-secondary/30 bg-secondary/10">PASS</span></div><p class="text-[9px] font-mono text-outline">Daily 5% / Max 10%</p></div>
+</div></div>
+
+<!-- D: 12-Gate Grid + E: Session Timer -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+<div class="lg:col-span-2">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">12-Gate Status</p>
+<div class="grid grid-cols-4 md:grid-cols-6 gap-2" id="gate-grid"></div>
+</div>
+<div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant lab-glow">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Session Timer</p>
+<p id="session-name" class="font-headline text-2xl font-bold text-primary mb-1">Off-Session</p>
+<p id="session-countdown" class="font-mono text-lg text-on-surface">--:--:--</p>
+<p id="session-sa" class="text-[10px] font-mono text-outline mt-2">SA Time: --:--</p>
+<div class="mt-4 space-y-1 text-[9px] font-mono text-outline">
+<p>London: 10:00–13:00 SAST</p><p>New York: 15:00–18:00 SAST</p>
+</div></div>
+</div>
+
+<!-- F: Open Trades -->
+<div class="mb-6">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Open Positions</p>
+<div class="bg-surface-container-low rounded-xl border border-outline-variant overflow-x-auto">
+<table class="w-full text-xs font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[9px] uppercase tracking-widest">
+<th class="px-4 py-2.5 text-left">Symbol</th><th class="px-3 py-2.5">Type</th><th class="px-3 py-2.5 text-right">Lots</th><th class="px-3 py-2.5 text-right">Entry</th><th class="px-3 py-2.5 text-right">Current</th><th class="px-3 py-2.5 text-right">SL</th><th class="px-3 py-2.5 text-right">TP</th><th class="px-3 py-2.5 text-right">P&amp;L</th><th class="px-3 py-2.5 text-right">Score</th><th class="px-3 py-2.5 text-right">Dur</th><th class="px-3 py-2.5">Stage</th>
+</tr></thead><tbody id="trades-body"><tr><td colspan="11" class="px-4 py-8 text-center text-outline">No open positions — Bot awaiting entry signal</td></tr></tbody></table>
+</div></div>
+
+<!-- G: Sentiment Grid -->
+<div>
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Market Sentiment</p>
+<div id="sentiment-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+</div>
+</div>
+
+<!-- ═══ TAB: BUILD PHASES ═══ -->
+<div id="tab-build" class="tab-panel">
+<div class="mb-8"><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Build Phases</h2>
+<p class="text-on-surface-variant text-sm mt-1">Configure strategy parameters before simulation.</p></div>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<aside class="lg:col-span-1"><div class="bg-surface-container rounded-xl p-4 lab-glow sticky top-28">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-4">Sections</p>
+<nav class="flex flex-col gap-1">
+<button data-form-step="1" onclick="goToFormStep(1)" class="form-step-btn flex items-center gap-3 px-4 py-3 text-sm transition-colors rounded-lg text-left"><span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono form-step-indicator border">1</span>Market</button>
+<button data-form-step="2" onclick="goToFormStep(2)" class="form-step-btn flex items-center gap-3 px-4 py-3 text-sm transition-colors rounded-lg text-left"><span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono form-step-indicator border">2</span>Entry Logic</button>
+<button data-form-step="3" onclick="goToFormStep(3)" class="form-step-btn flex items-center gap-3 px-4 py-3 text-sm transition-colors rounded-lg text-left"><span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono form-step-indicator border">3</span>Exit Rules</button>
+<button data-form-step="4" onclick="goToFormStep(4)" class="form-step-btn flex items-center gap-3 px-4 py-3 text-sm transition-colors rounded-lg text-left"><span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono form-step-indicator border">4</span>Risk Profile</button>
+</nav></div></aside>
+<div class="lg:col-span-3 space-y-4">
+<!-- S1: Market -->
+<div id="form-section-1" class="form-section bg-surface-container rounded-xl p-6 border-l-4 border-primary lab-glow">
+<h3 class="font-headline text-xl font-bold mb-6">Market Configuration</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div><label class="block text-xs font-mono text-outline uppercase mb-2">Asset Class</label><select class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm px-4 py-3 rounded-lg focus:border-primary focus:ring-0"><option>Forex</option><option>Crypto</option><option>Indices</option><option selected>Commodities</option></select></div>
+<div><label class="block text-xs font-mono text-outline uppercase mb-2">Symbol</label><input type="text" value="XAUUSD" class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm px-4 py-3 rounded-lg focus:border-primary focus:ring-0"/></div>
+<div><label class="block text-xs font-mono text-outline uppercase mb-2">Timeframe</label><select class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm px-4 py-3 rounded-lg focus:border-primary focus:ring-0"><option>M1</option><option>M5</option><option>M15</option><option selected>M30</option><option>H1</option><option>H4</option><option>D1</option></select></div>
+<div><label class="block text-xs font-mono text-outline uppercase mb-2">Session</label><select class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm px-4 py-3 rounded-lg focus:border-primary focus:ring-0"><option>All Sessions</option><option selected>London + NY Overlap</option><option>Asian</option></select></div>
+</div>
+<div class="flex justify-end mt-8"><button onclick="goToFormStep(2)" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2">Next <span class="material-symbols-outlined text-base">arrow_forward</span></button></div>
+</div>
+<!-- S2: Entry -->
+<div id="form-section-2" class="form-section bg-surface-container rounded-xl p-6 border-l-4 border-primary lab-glow">
+<h3 class="font-headline text-xl font-bold mb-6">Entry Logic</h3>
+<div class="space-y-4">
+<div class="bg-surface-container-low rounded-xl p-5 border border-secondary/30"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-secondary">check_circle</span><span class="font-mono text-sm font-bold text-secondary">RSI_OSCILLATOR</span></div><span class="text-[10px] font-mono text-secondary bg-secondary/10 px-2 py-1 rounded-sm">VALID</span></div>
+<div class="grid grid-cols-3 gap-4"><div><label class="text-[10px] font-mono text-outline uppercase mb-1 block">Period</label><input type="number" value="14" class="w-full bg-surface-container border border-outline-variant text-on-surface font-mono text-sm px-3 py-2 rounded focus:border-primary focus:ring-0"/></div><div><label class="text-[10px] font-mono text-outline uppercase mb-1 block">Overbought</label><input type="number" value="70" class="w-full bg-surface-container border border-outline-variant text-on-surface font-mono text-sm px-3 py-2 rounded focus:border-primary focus:ring-0"/></div><div><label class="text-[10px] font-mono text-outline uppercase mb-1 block">Oversold</label><input type="number" value="30" class="w-full bg-surface-container border border-outline-variant text-on-surface font-mono text-sm px-3 py-2 rounded focus:border-primary focus:ring-0"/></div></div></div>
+<div id="ema-card" class="bg-surface-container-low rounded-xl p-5 border border-outline-variant"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><span id="ema-icon" class="material-symbols-outlined text-outline">radio_button_unchecked</span><span class="font-mono text-sm font-bold">EMA_CROSSOVER</span></div><span id="ema-status-pill" class="text-[10px] font-mono text-outline bg-surface-container-highest px-2 py-1 rounded-sm">PENDING</span></div>
+<div class="grid grid-cols-2 gap-4"><div><label class="text-[10px] font-mono text-outline uppercase mb-1 block">Fast</label><input id="ema-fast" type="number" value="9" oninput="validateEMA()" class="w-full bg-surface-container border border-outline-variant text-on-surface font-mono text-sm px-3 py-2 rounded focus:border-primary focus:ring-0"/></div><div><label class="text-[10px] font-mono text-outline uppercase mb-1 block">Slow</label><input id="ema-slow" type="number" value="21" oninput="validateEMA()" class="w-full bg-surface-container border border-outline-variant text-on-surface font-mono text-sm px-3 py-2 rounded focus:border-primary focus:ring-0"/></div></div>
+<p id="ema-error" class="hidden text-xs font-mono text-error mt-3 items-center gap-2"><span class="material-symbols-outlined text-sm">error</span><span id="ema-error-msg"></span></p></div>
+</div>
+<div class="flex justify-between mt-8"><button onclick="goToFormStep(1)" class="border border-outline-variant text-on-surface-variant px-6 py-3 text-sm font-mono rounded-lg hover:bg-surface-container-high">Back</button><button onclick="goToFormStep(3)" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2">Next <span class="material-symbols-outlined text-base">arrow_forward</span></button></div>
+</div>
+<!-- S3: Exit -->
+<div id="form-section-3" class="form-section bg-surface-container rounded-xl p-6 border-l-4 border-primary lab-glow">
+<h3 class="font-headline text-xl font-bold mb-6">Exit Rules</h3>
+<div class="space-y-6">
+<div><div class="flex justify-between mb-2"><label class="text-xs font-mono text-outline uppercase">Take Profit (pips)</label><span id="tp-val" class="text-primary font-mono text-sm font-bold">80</span></div><input type="range" min="10" max="300" value="80" oninput="document.getElementById('tp-val').textContent=this.value" class="w-full h-1 rounded-full cursor-pointer"/></div>
+<div><div class="flex justify-between mb-2"><label class="text-xs font-mono text-outline uppercase">Stop Loss (pips)</label><span id="sl-val" class="text-error font-mono text-sm font-bold">40</span></div><input type="range" min="5" max="200" value="40" oninput="document.getElementById('sl-val').textContent=this.value" class="w-full h-1 rounded-full cursor-pointer"/></div>
+<div><div class="flex justify-between mb-2"><label class="text-xs font-mono text-outline uppercase">Trailing Stop (%)</label><span id="ts-val" class="text-secondary font-mono text-sm font-bold">1.5</span></div><input type="range" min="0" max="5" step="0.1" value="1.5" oninput="document.getElementById('ts-val').textContent=parseFloat(this.value).toFixed(1)" class="w-full h-1 rounded-full cursor-pointer"/></div>
+</div>
+<div class="flex justify-between mt-8"><button onclick="goToFormStep(2)" class="border border-outline-variant text-on-surface-variant px-6 py-3 text-sm font-mono rounded-lg hover:bg-surface-container-high">Back</button><button onclick="goToFormStep(4)" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2">Next <span class="material-symbols-outlined text-base">arrow_forward</span></button></div>
+</div>
+<!-- S4: Risk -->
+<div id="form-section-4" class="form-section bg-surface-container rounded-xl p-6 border-l-4 border-primary lab-glow">
+<h3 class="font-headline text-xl font-bold mb-6">Risk Profile</h3>
+<div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant mb-6"><table class="w-full text-sm font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[10px] uppercase tracking-widest"><th class="text-left px-5 py-3">Param</th><th class="text-right px-5 py-3">Value</th><th class="text-right px-5 py-3">Limit</th><th class="text-right px-5 py-3">Status</th></tr></thead><tbody class="divide-y divide-outline-variant/30">
+<tr><td class="px-5 py-3 text-on-surface-variant">Max Lot</td><td class="px-5 py-3 text-right">0.50</td><td class="px-5 py-3 text-right text-outline">&le;2.00</td><td class="px-5 py-3 text-right text-secondary">PASS</td></tr>
+<tr><td class="px-5 py-3 text-on-surface-variant">Daily DD</td><td class="px-5 py-3 text-right">2.5%</td><td class="px-5 py-3 text-right text-outline">&le;3.0%</td><td class="px-5 py-3 text-right text-secondary">PASS</td></tr>
+<tr><td class="px-5 py-3 text-on-surface-variant">Max DD</td><td class="px-5 py-3 text-right">7.8%</td><td class="px-5 py-3 text-right text-outline">&le;8.0%</td><td class="px-5 py-3 text-right text-secondary">PASS</td></tr>
+<tr><td class="px-5 py-3 text-on-surface-variant">Leverage</td><td class="px-5 py-3 text-right">1:30</td><td class="px-5 py-3 text-right text-outline">&le;1:100</td><td class="px-5 py-3 text-right text-secondary">PASS</td></tr>
+</tbody></table></div>
+<div class="flex justify-between"><button onclick="goToFormStep(3)" class="border border-outline-variant text-on-surface-variant px-6 py-3 text-sm font-mono rounded-lg hover:bg-surface-container-high">Back</button><button onclick="initSimulation()" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2 shadow-[0_0_24px_rgba(186,158,255,0.2)]"><span class="material-symbols-outlined text-base">rocket_launch</span>Initialize Simulation</button></div>
+</div>
+</div></div>
+</div>
+
+<!-- ═══ TAB: PERFORMANCE LAB ═══ -->
+<div id="tab-lab" class="tab-panel">
+<div id="lab-empty" class="hidden flex flex-col items-center justify-center py-24 text-center">
+<div class="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mb-6 border border-outline-variant"><span class="material-symbols-outlined text-4xl text-outline">science</span></div>
+<h3 class="font-headline text-2xl font-bold mb-3">No Simulation Running</h3>
+<p class="text-on-surface-variant text-sm mb-8 max-w-sm">Configure strategy in Build Phases first.</p>
+<button onclick="switchTab('build')" class="bg-primary text-on-primary px-8 py-3 text-sm font-bold rounded-lg hover:opacity-90 flex items-center gap-2"><span class="material-symbols-outlined text-base">arrow_back</span>Build Phases</button>
+</div>
+<div id="lab-content">
+<div class="mb-6 flex items-end justify-between"><div><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Performance Lab</h2><p class="text-outline font-mono text-xs mt-1">SESSION: AF-772-OPT // NEURAL_THETA_V4</p></div></div>
+<!-- Lab KPI strip (live from /api/history) -->
+<div id="lab-kpi-strip" class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-primary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Total Trades</p><p id="lab-total-trades" class="font-mono text-xl font-bold">—</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-secondary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Win Rate</p><p id="lab-win-rate" class="font-mono text-xl font-bold text-secondary">—</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-tertiary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Profit Factor</p><p id="lab-pf" class="font-mono text-xl font-bold text-tertiary">—</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-secondary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Net P&amp;L</p><p id="lab-net-pnl" class="font-mono text-xl font-bold">—</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-primary"><p class="text-[9px] font-mono text-outline uppercase mb-1">Avg Score</p><p id="lab-avg-score" class="font-mono text-xl font-bold">—</p></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-error"><p class="text-[9px] font-mono text-outline uppercase mb-1">Halts</p><p id="lab-halts" class="font-mono text-xl font-bold text-error">0</p></div>
+</div>
+<!-- Stepper -->
+<div class="bg-surface-container rounded-xl p-5 mb-6 lab-glow"><p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-5">Pipeline</p><div id="stepper-container" class="flex flex-col md:flex-row gap-4 md:gap-0"></div></div>
+<!-- Equity + Gauge -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+<div class="lg:col-span-2 bg-surface-container-low rounded-xl p-6 border-l-4 border-primary lab-glow"><div class="flex items-center justify-between mb-4"><h3 class="font-headline text-base font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">show_chart</span>EQUITY_CURVE</h3><span class="text-[10px] font-mono text-outline">Scroll to zoom</span></div><div style="height:240px;position:relative"><canvas id="equity-chart"></canvas></div></div>
+<div class="bg-surface-container-low rounded-xl p-6 border-l-4 border-secondary secondary-glow flex flex-col items-center justify-between"><h3 class="font-headline text-base font-bold self-start flex items-center gap-2"><span class="material-symbols-outlined text-secondary">health_and_safety</span>HEALTH</h3>
+<div class="relative flex items-center justify-center my-4"><svg width="160" height="160" viewBox="0 0 180 180"><circle cx="90" cy="90" r="72" fill="none" stroke="#111416" stroke-width="12"/><circle id="gauge-circle" cx="90" cy="90" r="72" fill="none" stroke="#69f6b8" stroke-width="12" stroke-linecap="round" stroke-dasharray="452.4" stroke-dashoffset="452.4" transform="rotate(-90 90 90)"/></svg><div class="absolute flex flex-col items-center"><span id="gauge-number" class="font-mono text-3xl font-bold">0</span><span class="font-mono text-[9px] text-outline">/ 100</span></div></div>
+<div class="grid grid-cols-2 gap-3 w-full text-center"><div class="bg-surface-container rounded-lg p-2"><p class="text-[9px] font-mono text-outline mb-1">Stability</p><p class="font-mono text-sm font-bold text-secondary">92%</p></div><div class="bg-surface-container rounded-lg p-2"><p class="text-[9px] font-mono text-outline mb-1">Risk</p><p class="font-mono text-sm font-bold text-error">15</p></div></div></div>
+</div>
+<!-- Heatmap -->
+<div class="bg-surface-container-low rounded-xl p-6 border-l-4 border-tertiary mb-6 lab-glow"><h3 class="font-headline text-base font-bold mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-tertiary">grid_on</span>MONTHLY P&amp;L</h3><div id="heatmap-grid"></div></div>
+<!-- By-Symbol Table -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant mb-6">
+<div class="px-5 py-3 border-b border-outline-variant flex items-center gap-2"><span class="material-symbols-outlined text-tertiary text-sm">leaderboard</span><span class="font-mono text-xs font-bold">BY SYMBOL</span></div>
+<table class="w-full text-xs font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[9px] uppercase tracking-widest"><th class="px-4 py-2 text-left">Symbol</th><th class="px-3 py-2 text-right">Trades</th><th class="px-3 py-2 text-right">Win%</th><th class="px-3 py-2 text-right">Net P&amp;L</th><th class="px-3 py-2 text-right">PF</th><th class="px-3 py-2 text-right">Avg Score</th></tr></thead>
+<tbody id="symbol-table-body"><tr><td colspan="6" class="px-4 py-6 text-center text-outline">Connect API for live stats</td></tr></tbody></table>
+</div>
+<!-- Code Preview -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant lab-glow"><div class="flex items-center justify-between px-5 py-3 border-b border-outline-variant"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-primary text-sm">code</span><span class="font-mono text-xs font-bold">ISP_V3_ENTRY_SCORE.mq5</span></div><button id="copy-btn" onclick="copyCode()" class="flex items-center gap-2 text-xs font-mono text-outline hover:text-on-surface border border-outline-variant px-3 py-1 rounded hover:bg-surface-container-high"><span id="copy-icon" class="material-symbols-outlined text-sm">content_copy</span><span id="copy-label">Copy</span></button></div><pre><code id="code-preview" class="language-clike"></code></pre></div>
+</div>
+</div>
+
+<!-- ═══ TAB: BOT HISTORY ═══ -->
+<div id="tab-history" class="tab-panel">
+<div class="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4"><div><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Bot Repository</h2><p class="text-on-surface-variant text-sm mt-1">Institutional-grade trading units.</p></div>
+<div class="relative w-full md:w-80"><span class="absolute inset-y-0 left-3 flex items-center text-outline pointer-events-none"><span class="material-symbols-outlined text-sm">search</span></span><input id="bot-search" type="text" oninput="renderBotTable()" placeholder="SEARCH..." class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-mono text-sm pl-10 pr-4 py-3 rounded-lg focus:border-primary focus:ring-0"/></div></div>
+<div class="flex gap-2 mb-4 flex-wrap">
+<button data-filter="all" onclick="setBotFilter('all')" class="filter-pill px-4 py-1.5 text-xs font-mono uppercase rounded-full border">All</button>
+<button data-filter="profitable" onclick="setBotFilter('profitable')" class="filter-pill px-4 py-1.5 text-xs font-mono uppercase rounded-full border">Profitable</button>
+<button data-filter="review" onclick="setBotFilter('review')" class="filter-pill px-4 py-1.5 text-xs font-mono uppercase rounded-full border">Review</button>
+</div>
+<div class="mb-4"><div class="hidden md:grid grid-cols-6 px-6 py-2 bg-surface-container-lowest text-outline text-[9px] font-mono uppercase tracking-[0.2em] rounded-t-lg"><div class="col-span-2">Unit</div><div>Market</div><div class="text-center">Health</div><div class="text-center">Status</div><div class="text-right">Actions</div></div>
+<div id="bot-table-body" class="space-y-2"></div><div id="bot-empty-state" class="hidden py-12 text-center"><span class="material-symbols-outlined text-3xl text-outline block mb-2">search_off</span><p class="font-mono text-sm text-outline">No bots match.</p></div></div>
+<!-- Auto-Tune -->
+<div class="mt-10"><div class="mb-4"><h3 class="font-headline text-xl font-bold flex items-center gap-3"><span class="material-symbols-outlined text-primary">tune</span>Auto-Tune <span class="text-primary">Comparison</span></h3></div>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+<div class="lg:col-span-3 bg-surface-container-low rounded-xl p-5 border-l-4 border-primary lab-glow"><div class="flex items-center justify-between mb-4"><h4 class="font-headline text-sm font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">analytics</span>EQUITY OVERLAY</h4>
+<div class="flex gap-4 font-mono text-[10px]"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="toggle-original" checked onchange="toggleAutotuneDataset(0)" class="accent-outline w-3 h-3"/><span class="w-4 border-t border-dashed border-outline"></span>ORIG</label><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="toggle-optimized" checked onchange="toggleAutotuneDataset(1)" class="accent-primary w-3 h-3"/><span class="w-4 h-1 bg-primary inline-block"></span><span class="text-primary">AI_OPT</span></label></div></div>
+<div style="height:240px;position:relative"><canvas id="autotune-chart"></canvas></div></div>
+<div class="space-y-3"><div class="bg-surface-container rounded-xl p-4 border-l-4 border-secondary"><span class="font-mono text-[9px] text-outline uppercase">Profit+</span><div class="flex items-end justify-between mt-1"><span class="font-mono text-2xl font-bold text-secondary">+15.4%</span><span class="material-symbols-outlined text-secondary text-3xl opacity-20">trending_up</span></div></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-error"><span class="font-mono text-[9px] text-outline uppercase">DD Reduction</span><div class="flex items-end justify-between mt-1"><span class="font-mono text-2xl font-bold text-error">-5.2%</span><span class="material-symbols-outlined text-error text-3xl opacity-20">warning</span></div></div>
+<div class="bg-surface-container rounded-xl p-4 border-l-4 border-tertiary"><span class="font-mono text-[9px] text-outline uppercase">Sharpe</span><div class="flex items-end justify-between mt-1"><span class="font-mono text-2xl font-bold text-tertiary">2.84</span><span class="font-mono text-[10px] text-outline">Was 1.92</span></div></div></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="bg-surface-container-low rounded-xl p-5 border-l-4 border-tertiary lab-glow"><h4 class="font-headline text-sm font-bold flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-tertiary">scatter_plot</span>MONTE CARLO</h4><div style="height:240px;position:relative"><canvas id="montecarlo-chart"></canvas></div></div>
+<div class="bg-surface-container-low rounded-xl p-5 border-l-4 border-secondary secondary-glow"><h4 class="font-headline text-sm font-bold flex items-center gap-2 mb-4"><span class="material-symbols-outlined text-secondary">grid_view</span>SENSITIVITY</h4><div id="sensitivity-grid" class="w-full"></div></div>
+</div></div>
+</div>
+
+<!-- ═══ TAB: PROP RULES ═══ -->
+<div id="tab-prop" class="tab-panel">
+<div class="mb-6"><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">Prop Rules</h2><p class="text-on-surface-variant text-sm mt-1">EA compliance configuration &amp; firm comparison.</p></div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+<div class="bg-surface-container-low rounded-xl p-6 border-l-4 border-primary lab-glow">
+<h3 class="font-headline text-lg font-bold mb-4">Our EA Settings</h3>
+<div class="space-y-3 text-sm font-mono">
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Risk per trade</span><span class="text-on-surface">0.5% equity</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Daily loss limit</span><span class="text-error">3.0%</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Max drawdown</span><span class="text-error">8.0%</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Max open trades</span><span class="text-on-surface">2</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Position sizing</span><span class="text-on-surface">ATR-based</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">Trailing stop</span><span class="text-on-surface">Chandelier 2.5x ATR</span></div>
+<div class="flex justify-between py-2 border-b border-outline-variant/30"><span class="text-on-surface-variant">News filter</span><span class="text-on-surface">&pm;15/30 min blocks</span></div>
+<div class="flex justify-between py-2"><span class="text-on-surface-variant">Sessions</span><span class="text-on-surface">London + NY</span></div>
+</div></div>
+<div class="space-y-4">
+<div class="bg-surface-container rounded-xl p-5 border border-outline-variant"><h3 class="font-headline text-base font-bold mb-3">Common EA Failures</h3><div class="space-y-2 text-xs font-mono">
+<div class="flex items-center gap-2"><span class="text-error">71%</span><span class="text-on-surface-variant">Daily DD breach</span></div>
+<div class="flex items-center gap-2"><span class="text-error">15%</span><span class="text-on-surface-variant">Max DD breach</span></div>
+<div class="flex items-center gap-2"><span class="text-error">6%</span><span class="text-on-surface-variant">Consistency rule violation</span></div>
+<div class="flex items-center gap-2"><span class="text-error">4%</span><span class="text-on-surface-variant">Mass-distributed EA detected</span></div>
+<div class="flex items-center gap-2"><span class="text-error">3%</span><span class="text-on-surface-variant">News trading violation</span></div>
+<div class="flex items-center gap-2"><span class="text-error">1%</span><span class="text-on-surface-variant">Fixed lot sizing detected</span></div>
+</div></div>
+<div class="bg-secondary/10 border border-secondary/30 rounded-xl p-5"><h3 class="font-headline text-base font-bold text-secondary mb-2">Recommendation</h3><p class="text-xs font-mono text-on-surface-variant">Start with <span class="text-secondary font-bold">E8 Markets</span> — 4% daily DD matches our 3% buffer well. Begin with $5k–$10k challenge.</p></div>
+</div></div>
+<div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant"><table class="w-full text-xs font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[9px] uppercase tracking-widest"><th class="px-4 py-3 text-left">Firm</th><th class="px-3 py-3 text-right">Daily DD</th><th class="px-3 py-3 text-right">Max DD</th><th class="px-3 py-3">Consistency</th><th class="px-3 py-3 text-center">Status</th></tr></thead><tbody class="divide-y divide-outline-variant/30">
+<tr class="bg-surface-container/50"><td class="px-4 py-3 text-primary font-bold">Our EA</td><td class="px-3 py-3 text-right">3.0%</td><td class="px-3 py-3 text-right">8.0%</td><td class="px-3 py-3 text-outline">—</td><td class="px-3 py-3 text-center">—</td></tr>
+<tr><td class="px-4 py-3">FTMO</td><td class="px-3 py-3 text-right">5.0%</td><td class="px-3 py-3 text-right">10.0%</td><td class="px-3 py-3 text-outline">None strict</td><td class="px-3 py-3 text-center text-secondary">PASS</td></tr>
+<tr><td class="px-4 py-3">E8 Markets</td><td class="px-3 py-3 text-right">4.0%</td><td class="px-3 py-3 text-right">8.0%</td><td class="px-3 py-3 text-outline">35% cap</td><td class="px-3 py-3 text-center text-secondary">PASS</td></tr>
+<tr><td class="px-4 py-3">FundedNext</td><td class="px-3 py-3 text-right">5.0%</td><td class="px-3 py-3 text-right">10.0%</td><td class="px-3 py-3 text-outline">None</td><td class="px-3 py-3 text-center text-secondary">PASS</td></tr>
+<tr><td class="px-4 py-3">The5ers</td><td class="px-3 py-3 text-right">5.0%</td><td class="px-3 py-3 text-right">10.0%</td><td class="px-3 py-3 text-outline">None</td><td class="px-3 py-3 text-center text-secondary">PASS</td></tr>
+</tbody></table></div>
+</div>
+
+<!-- ═══ TAB: NEWS & EVENTS ═══ -->
+<div id="tab-news" class="tab-panel">
+<div class="mb-6"><h2 class="font-headline text-3xl font-extrabold tracking-tight uppercase italic text-primary">News &amp; Events</h2><p class="text-on-surface-variant text-sm mt-1">Sentiment analysis &amp; economic calendar.</p></div>
+
+<!-- News Block Alert -->
+<div id="news-alert-banner" class="hidden bg-error/10 border border-error/30 rounded-xl p-4 mb-6 flex items-center gap-3 news-alert">
+<span class="material-symbols-outlined text-error text-xl">warning</span>
+<div><p class="font-mono text-sm font-bold text-error">NEWS FILTER ACTIVE</p><p id="news-alert-detail" class="text-xs font-mono text-on-surface-variant">High-impact event within 30 min window</p></div>
+<span id="news-alert-countdown" class="ml-auto font-mono text-lg font-bold text-error">--:--</span>
+</div>
+<div id="news-clear-banner" class="bg-secondary/10 border border-secondary/30 rounded-xl p-4 mb-6 flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary text-xl">check_circle</span>
+<p class="font-mono text-sm text-secondary">ALL CLEAR — No high-impact events in next 30 minutes</p>
+</div>
+
+<!-- Sentiment detailed -->
+<div class="mb-6">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Pair Sentiment Analysis</p>
+<div id="news-sentiment-detail" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+<p id="sentiment-fetched" class="text-[9px] font-mono text-outline mt-2">Last fetch: —</p>
+</div>
+
+<!-- Economic Calendar -->
+<div>
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest mb-3">Economic Calendar — High Impact</p>
+<div class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant">
+<table class="w-full text-xs font-mono"><thead><tr class="bg-surface-container-lowest text-outline text-[9px] uppercase tracking-widest"><th class="px-4 py-2.5 text-left">Time (SAST)</th><th class="px-3 py-2.5 text-left">Currency</th><th class="px-3 py-2.5 text-left">Event</th><th class="px-3 py-2.5 text-right">Previous</th><th class="px-3 py-2.5 text-right">Forecast</th><th class="px-3 py-2.5 text-center">Status</th></tr></thead>
+<tbody id="calendar-body"><tr><td colspan="6" class="px-4 py-8 text-center text-outline">Loading calendar...</td></tr></tbody></table>
+</div></div>
+</div>
+
+</main>
+
+<!-- Prop Checker Slide-over -->
+<div id="prop-backdrop" onclick="closePropChecker()" class="fixed inset-0 bg-black/60 z-50"></div>
+<aside id="prop-checker" class="fixed right-0 top-0 h-full w-full max-w-sm bg-surface-container-low border-l border-outline-variant z-50 flex flex-col shadow-2xl">
+<div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant"><div><h3 class="font-headline text-base font-bold text-primary">Prop Rule Checker</h3><p id="prop-checker-bot-name" class="text-outline font-mono text-xs">—</p></div><button onclick="closePropChecker()" class="text-outline hover:text-on-surface p-1"><span class="material-symbols-outlined">close</span></button></div>
+<div id="prop-checker-body" class="flex-1 overflow-y-auto px-6 py-4 space-y-3"></div>
+<div class="px-6 py-4 border-t border-outline-variant"><button onclick="closePropChecker()" class="w-full bg-primary text-on-primary py-3 text-sm font-bold rounded-lg hover:opacity-90">Close</button></div>
+</aside>
+
+<div id="heatmap-tooltip"></div><div id="sensitivity-tooltip"></div>
+
+<!-- Mobile Nav -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0c0e10] border-t border-outline-variant flex">
+<button onclick="switchTab('live')" data-mobile-tab="live" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 py-2 text-outline"><span class="material-symbols-outlined text-lg">dashboard</span><span class="text-[8px] font-mono">Live</span></button>
+<button onclick="switchTab('build')" data-mobile-tab="build" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 py-2 text-outline"><span class="material-symbols-outlined text-lg">build</span><span class="text-[8px] font-mono">Build</span></button>
+<button onclick="switchTab('lab')" data-mobile-tab="lab" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 py-2 text-outline"><span class="material-symbols-outlined text-lg">science</span><span class="text-[8px] font-mono">Lab</span></button>
+<button onclick="switchTab('history')" data-mobile-tab="history" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 py-2 text-outline"><span class="material-symbols-outlined text-lg">history</span><span class="text-[8px] font-mono">Bots</span></button>
+<button onclick="switchTab('news')" data-mobile-tab="news" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 py-2 text-outline"><span class="material-symbols-outlined text-lg">newspaper</span><span class="text-[8px] font-mono">News</span></button>
+</nav>
+
+<div class="fixed top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" style="transform:translate(30%,-30%)"></div>
+<div class="fixed bottom-0 left-0 w-96 h-96 bg-tertiary/5 rounded-full blur-3xl pointer-events-none" style="transform:translate(-30%,30%)"></div>
+
+<!-- JS Part 1: Data + State -->
+<script id="app-data">
+const API_BASE='http://localhost:5051';
+
+const APP={currentTab:'live',currentFormStep:1,labStepperState:2,labInited:false,historyInited:false,newsInited:false,
+propCheckerOpen:false,propCheckerBot:null,botFilter:{search:'',status:'all'},charts:{},healthAnimated:false,
+apiConnected:false,apiErrors:{},lastUpdate:null};
+
+const LIVE_DATA={status:null,account:null,trades:null,compliance:null,session:null,history:null,sentiment:null,news:null};
+
+const DEMO_DATA={
+equityCurve:[{label:'Jan 24',v:10000},{label:'Feb 24',v:10340},{label:'Mar 24',v:10180},{label:'Apr 24',v:10720},{label:'May 24',v:10510},{label:'Jun 24',v:11240},{label:'Jul 24',v:11680},{label:'Aug 24',v:11420},{label:'Sep 24',v:12100},{label:'Oct 24',v:12780},{label:'Nov 24',v:12490},{label:'Dec 24',v:13150},{label:'Jan 25',v:13600},{label:'Feb 25',v:13920},{label:'Mar 25',v:14280}],
+monthlyPnL:[{month:'Jan 24',pct:3.4,trades:48,winRate:62},{month:'Feb 24',pct:-1.6,trades:41,winRate:44},{month:'Mar 24',pct:5.3,trades:55,winRate:71},{month:'Apr 24',pct:-2.1,trades:38,winRate:42},{month:'May 24',pct:7.1,trades:63,winRate:76},{month:'Jun 24',pct:3.9,trades:52,winRate:67},{month:'Jul 24',pct:-0.8,trades:44,winRate:50},{month:'Aug 24',pct:6.5,trades:59,winRate:73},{month:'Sep 24',pct:4.2,trades:50,winRate:68},{month:'Oct 24',pct:-3.1,trades:36,winRate:39},{month:'Nov 24',pct:8.8,trades:71,winRate:80},{month:'Dec 24',pct:5.2,trades:57,winRate:72},{month:'Jan 25',pct:3.4,trades:46,winRate:63},{month:'Feb 25',pct:2.4,trades:43,winRate:60},{month:'Mar 25',pct:2.6,trades:47,winRate:64}],
+health:{score:88},
+bots:[{id:'AF-8829-X',name:'NEURAL_THETA_V4',market:'XAUUSD.m',health:98.4,status:'compiled',border:'secondary',color:'secondary'},{id:'AF-1102-L',name:'GHOST_TRAIL_LITE',market:'NQ1!',health:72.1,status:'testing',border:'primary',color:'primary'},{id:'AF-9931-E',name:'SCALPEL_MACD_V1',market:'EURUSD',health:12.5,status:'error',border:'error',color:'error'},{id:'AF-0044-A',name:'ISP_ALPHA_V3',market:'BTCUSD',health:91.2,status:'live',border:'tertiary',color:'tertiary'}],
+propRules:{'AF-8829-X':[{label:'Max Daily Loss',detail:'1.8% / 3.0%',pass:true},{label:'News Restriction',detail:'No trades ±30min NFP/CPI',pass:true},{label:'Max Lot Size',detail:'0.50 / 2.00',pass:true},{label:'Max Drawdown',detail:'7.8% / 8.0%',pass:true}],'AF-1102-L':[{label:'Max Daily Loss',detail:'2.4% / 3.0%',pass:true},{label:'News Restriction',detail:'Trade in news window',pass:false},{label:'Max Lot Size',detail:'0.80 / 2.00',pass:true}],'AF-9931-E':[{label:'Max Daily Loss',detail:'3.8% / 3.0%',pass:false},{label:'Max Drawdown',detail:'11.2% / 8.0%',pass:false},{label:'Max Lot Size',detail:'0.25 / 2.00',pass:true}],'AF-0044-A':[{label:'Max Daily Loss',detail:'0.9% / 3.0%',pass:true},{label:'News Restriction',detail:'All events respected',pass:true},{label:'Max Lot Size',detail:'1.20 / 2.00',pass:true},{label:'Max Drawdown',detail:'4.1% / 8.0%',pass:true}]},
+autotuneOriginal:[10000,10230,10150,10420,10310,10680,10590,10820,10760,11080,11020,11310,11240,11580,11500],
+autotuneOptimized:[10000,10480,10620,11150,11380,11940,12180,12740,12990,13560,13820,14380,14640,15200,15480],
+labSteps:[{label:'BACKTESTING',status:'complete',icon:'history'},{label:'PARSING',status:'complete',icon:'data_object'},{label:'MONTE CARLO',status:'processing',icon:'scatter_plot'},{label:'AI HEALTH',status:'pending',icon:'health_and_safety'}],
+sensitivityGrid:(()=>{const g=[];for(let r=0;r<10;r++){const row=[];for(let c=0;c<10;c++)row.push(+(Math.sin(r*.8)*Math.cos(c*.9)*15+(r-4.5)*(c-4.5)*.6).toFixed(1));g.push(row)}return g})(),
+codePreview:`/* ISP v3 — Entry Score Engine */
+double calcEntryScore(int shift) {
+  double rsi   = iRSI(NULL,0,14,PRICE_CLOSE,shift);
+  double ema9  = iMA(NULL,0,9,0,MODE_EMA,PRICE_CLOSE,shift);
+  double ema21 = iMA(NULL,0,21,0,MODE_EMA,PRICE_CLOSE,shift);
+  double atr   = iATR(NULL,0,14,shift);
+  double spread = MarketInfo(Symbol(),MODE_SPREAD)*Point;
+  double momentumScore = (ema9>ema21) ? NormalizeDouble((ema9-ema21)/atr,3) : 0;
+  double rsiScore = (rsi<35) ? (35-rsi)/35.0 : (rsi>65) ? (rsi-65)/35.0 : 0;
+  double spreadPenalty = (spread>atr*0.15) ? 0.4 : 1.0;
+  double totalScore = (momentumScore*0.5+rsiScore*0.5)*spreadPenalty;
+  if (totalScore>ISP_ENTRY_THRESHOLD && CheckPropLimits()) return totalScore;
+  return 0;
+}`,
+demoSentiment:{EURUSD:{score:0.12,signal:'BULLISH',block:false,base_articles:18},GBPUSD:{score:-0.05,signal:'NEUTRAL',block:false,base_articles:12},USDJPY:{score:-0.15,signal:'BEARISH',block:true,base_articles:22},XAUUSD:{score:0.08,signal:'NEUTRAL',block:false,base_articles:15},AUDUSD:{score:0.03,signal:'NEUTRAL',block:false,base_articles:8},USDCAD:{score:-0.02,signal:'NEUTRAL',block:false,base_articles:10},USDCHF:{score:0.06,signal:'NEUTRAL',block:false,base_articles:7},NZDUSD:{score:0.01,signal:'NEUTRAL',block:false,base_articles:5}},
+demoCalendar:[{title:'Non-Farm Payrolls',country:'USD',date:'2026-05-01T12:30:00Z',impact:'High',previous:'228K',forecast:'180K'},{title:'CPI y/y',country:'USD',date:'2026-04-13T12:30:00Z',impact:'High',previous:'3.1%',forecast:'2.9%'},{title:'BOE Rate Decision',country:'GBP',date:'2026-04-16T11:00:00Z',impact:'High',previous:'4.50%',forecast:'4.25%'},{title:'FOMC Minutes',country:'USD',date:'2026-04-22T18:00:00Z',impact:'High',previous:'—',forecast:'—'}],
+};
+
+const GATES=[
+{id:1,label:'New Bar',icon:'fiber_new',src:'ea'},{id:2,label:'Prop Rules',icon:'verified',src:'compliance'},
+{id:3,label:'Session',icon:'schedule',src:'session'},{id:4,label:'Max Trades',icon:'format_list_numbered',src:'trades'},
+{id:5,label:'Volatility',icon:'electric_bolt',src:'ea'},{id:6,label:'Regime',icon:'swap_vert',src:'ea'},
+{id:7,label:'HTF Bias',icon:'trending_up',src:'ea'},{id:8,label:'EMA Signal',icon:'timeline',src:'ea'},
+{id:9,label:'Score ≥6',icon:'star',src:'ea'},{id:10,label:'ONNX',icon:'model_training',src:'ea'},
+{id:11,label:'News',icon:'newspaper',src:'sentiment'},{id:12,label:'Sentiment',icon:'cloud',src:'status'}];
+</script>
+
+<!-- JS Part 2: Functions -->
+<script id="app-logic">
+// ── Helpers ──
+const fmtUSD=n=>n!=null?'$'+Number(n).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+const fmtPct=n=>n!=null?Number(n).toFixed(2)+'%':'—';
+const ddColor=pct=>pct>=75?'#ff6e84':pct>=50?'#FFD740':'#69f6b8';
+
+// ── Trial Banner ──
+function initTrialBanner(){if(sessionStorage.getItem('trial-dismissed')){document.getElementById('trial-banner').style.display='none';adjustBarTop(0)}}
+function dismissTrialBanner(){sessionStorage.setItem('trial-dismissed','1');const b=document.getElementById('trial-banner');b.style.transition='height .3s,opacity .3s';b.style.height='0';b.style.opacity='0';setTimeout(()=>{b.style.display='none';adjustBarTop(0)},300)}
+function adjustBarTop(h){document.getElementById('app-bar').style.top=h+'px';document.getElementById('main-content').style.paddingTop=(h+64)+'px'}
+
+// ── Tab Nav ──
+function switchTab(name){
+APP.currentTab=name;
+document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+document.getElementById('tab-'+name)?.classList.add('active');
+document.querySelectorAll('.tab-btn').forEach(b=>{const a=b.dataset.tab===name;b.classList.toggle('text-primary',a);b.classList.toggle('border-b',a);b.classList.toggle('border-primary',a);b.classList.toggle('text-on-surface-variant',!a);b.classList.toggle('opacity-60',!a)});
+document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.mobileTab===name));
+if(name==='lab'&&!APP.labInited){APP.labInited=true;setTimeout(initLabTab,50)}
+if(name==='history'&&!APP.historyInited){APP.historyInited=true;setTimeout(initHistoryTab,50)}
+if(name==='news'&&!APP.newsInited){APP.newsInited=true;setTimeout(initNewsTab,50)}
+}
+
+// ── Form Steps ──
+function goToFormStep(n){APP.currentFormStep=n;document.querySelectorAll('.form-section').forEach(s=>s.classList.remove('active'));document.getElementById('form-section-'+n)?.classList.add('active');
+document.querySelectorAll('.form-step-btn').forEach(b=>{const s=+b.dataset.formStep,ind=b.querySelector('.form-step-indicator'),a=s===n,d=s<n;b.classList.toggle('text-primary',a);b.classList.toggle('bg-surface-container-high',a);b.classList.toggle('text-on-surface-variant',!a);
+if(d){ind.classList.add('bg-primary','text-on-primary','border-primary');ind.classList.remove('border-outline-variant','text-outline');ind.innerHTML='<span class="material-symbols-outlined text-xs">check</span>'}else{ind.classList.remove('bg-primary','text-on-primary','border-primary');ind.classList.add('border-outline-variant');ind.innerHTML=s;if(a)ind.classList.add('border-primary','text-primary')}})}
+function validateEMA(){const f=+document.getElementById('ema-fast').value,s=+document.getElementById('ema-slow').value;if(!f||!s)return;const card=document.getElementById('ema-card'),icon=document.getElementById('ema-icon'),pill=document.getElementById('ema-status-pill'),err=document.getElementById('ema-error');
+if(f>=s){card.className='bg-surface-container-low rounded-xl p-5 border border-error/50';icon.textContent='error';icon.className='material-symbols-outlined text-error';pill.textContent='ERROR';pill.className='text-[10px] font-mono text-error bg-error/10 px-2 py-1 rounded-sm';document.getElementById('ema-error-msg').textContent=`Fast (${f}) must be < slow (${s})`;err.classList.remove('hidden');err.classList.add('flex')}
+else{card.className='bg-surface-container-low rounded-xl p-5 border border-secondary/30';icon.textContent='check_circle';icon.className='material-symbols-outlined text-secondary';pill.textContent='VALID';pill.className='text-[10px] font-mono text-secondary bg-secondary/10 px-2 py-1 rounded-sm';err.classList.add('hidden');err.classList.remove('flex')}}
+function initSimulation(){switchTab('lab')}
+
+// ── Live System: Gates ──
+function renderGates(){
+const grid=document.getElementById('gate-grid');
+grid.innerHTML=GATES.map(g=>{
+let state='na',label='N/A',color='text-outline';
+if(g.src==='compliance'&&LIVE_DATA.compliance){const c=LIVE_DATA.compliance.firms?.our_settings;if(c){state=c.overall_pass?'pass':'fail';label=c.overall_pass?'PASS':'BREACH';color=c.overall_pass?'text-secondary':'text-error'}}
+else if(g.src==='session'&&LIVE_DATA.session){const s=LIVE_DATA.session;state=s.in_session?'pass':'na';label=s.in_session?s.session_name:'OFF';color=s.in_session?'text-secondary':'text-outline'}
+else if(g.src==='trades'&&LIVE_DATA.trades!==null){const n=(LIVE_DATA.trades||[]).length;state=n<=2?'pass':'fail';label=`${n}/2`;color=n<=2?'text-secondary':'text-error'}
+else if(g.src==='sentiment'){if(LIVE_DATA.sentiment){const blocked=Object.values(LIVE_DATA.sentiment).some(s=>s.block);state=blocked?'fail':'pass';label=blocked?'BLOCKED':'CLEAR';color=blocked?'text-error':'text-secondary'}}
+else if(g.src==='status'&&LIVE_DATA.status){state=LIVE_DATA.status.sentiment?'pass':'fail';label=LIVE_DATA.status.sentiment?'SVC UP':'OFFLINE';color=LIVE_DATA.status.sentiment?'text-secondary':'text-error'}
+return `<div class="gate-cell ${state}"><span class="material-symbols-outlined text-lg ${color} mb-1">${g.icon}</span><p class="text-[9px] font-mono text-outline">${g.label}</p><p class="text-[10px] font-mono font-bold ${color}">${label}</p></div>`}).join('')}
+
+// ── Live System: Render Functions ──
+function renderStatus(){
+const s=LIVE_DATA.status;const on=s!==null;
+[['dot-api','lbl-api',on&&s?.api],['dot-mt5','lbl-mt5',on&&s?.mt5],['dot-sent','lbl-sent',on&&s?.sentiment],['dot-mon','lbl-mon',on&&s?.monitor]].forEach(([d,l,v])=>{
+const dot=document.getElementById(d),lbl=document.getElementById(l);if(!dot)return;dot.className='status-dot '+(v?'on':'off');lbl.textContent=v?'ONLINE':'OFFLINE';lbl.className='text-xs font-mono '+(v?'text-secondary':'text-error')});
+const eaDot=document.getElementById('dot-ea'),eaLbl=document.getElementById('lbl-ea');
+if(on&&s?.log_fresh){eaDot.className='status-dot on';eaLbl.textContent='ACTIVE';eaLbl.className='text-xs font-mono text-secondary'}
+renderGates()}
+
+function renderAccount(){
+const a=LIVE_DATA.account;if(!a)return;
+document.getElementById('kpi-balance').textContent=fmtUSD(a.balance);
+document.getElementById('kpi-equity').textContent=fmtUSD(a.equity);
+const dp=document.getElementById('kpi-daypnl');dp.textContent=(a.day_pnl>=0?'+':'')+fmtUSD(a.day_pnl);dp.className='font-mono text-xl font-bold '+(a.day_pnl>=0?'text-secondary':'text-error');
+document.getElementById('kpi-daypnl-pct').textContent=(a.day_pnl_pct>=0?'+':'')+fmtPct(a.day_pnl_pct);
+document.getElementById('kpi-openpnl').textContent=(a.profit>=0?'+':'')+fmtUSD(a.profit);document.getElementById('kpi-openpnl').className='font-mono text-xl font-bold '+(a.profit>=0?'text-secondary':'text-error');
+document.getElementById('kpi-margin').textContent=fmtUSD(a.free_margin);
+document.getElementById('kpi-leverage').textContent='1:'+a.leverage}
+
+function renderCompliance(){
+const c=LIVE_DATA.compliance;if(!c?.firms)return;const o=c.firms.our_settings;
+if(o){const badge=document.getElementById('comp-overall');badge.textContent=o.overall_pass?'CHALLENGE OK':'AT RISK';badge.className='px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border '+(o.overall_pass?'text-secondary border-secondary/40 bg-secondary/10':'text-error border-error/40 bg-error/10');
+document.getElementById('comp-daily-nums').textContent=`${o.daily_dd_pct.toFixed(3)}% / ${o.daily_limit}%`;
+const dPct=Math.min(o.daily_pct_used||0,100);document.getElementById('comp-daily-bar').style.width=dPct+'%';document.getElementById('comp-daily-bar').style.background=ddColor(dPct);
+document.getElementById('comp-daily-buffer').textContent='Buffer: '+(o.daily_limit-o.daily_dd_pct).toFixed(3)+'%';
+document.getElementById('comp-max-nums').textContent=`${o.max_dd_pct.toFixed(3)}% / ${o.max_dd_limit}%`;
+const mPct=Math.min(o.max_pct_used||0,100);document.getElementById('comp-max-bar').style.width=mPct+'%';document.getElementById('comp-max-bar').style.background=ddColor(mPct);
+document.getElementById('comp-max-buffer').textContent='Buffer: '+(o.max_dd_limit-o.max_dd_pct).toFixed(3)+'%'}
+const firmMap={FTMO:'firm-ftmo',E8_Markets:'firm-e8',FundedNext:'firm-fn',The5ers:'firm-5ers'};
+Object.entries(firmMap).forEach(([k,id])=>{const f=c.firms[k];if(!f)return;const el=document.getElementById(id);el.textContent=f.overall_pass?'PASS':'FAIL';el.className='px-2 py-0.5 text-[8px] font-mono uppercase rounded-sm border '+(f.overall_pass?'text-secondary border-secondary/30 bg-secondary/10':'text-error border-error/30 bg-error/10')});
+renderGates()}
+
+function renderTrades(){
+const trades=LIVE_DATA.trades||[];const tbody=document.getElementById('trades-body');
+if(!trades.length){tbody.innerHTML='<tr><td colspan="11" class="px-4 py-8 text-center text-outline">No open positions — Bot awaiting entry signal</td></tr>';return}
+tbody.innerHTML=trades.map(t=>{const pColor=t.profit>=0?'text-secondary':'text-error';const tBadge=t.type==='BUY'?'bg-secondary/10 text-secondary border-secondary/30':'bg-error/10 text-error border-error/30';
+const stage=t.is_tp2?'TP2':t.is_tp1?'TP1':'—';return `<tr class="hover:bg-surface-container transition-colors">
+<td class="px-4 py-2.5 font-bold">${t.symbol}</td><td class="px-3 py-2.5"><span class="px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border ${tBadge}">${t.type}</span></td>
+<td class="px-3 py-2.5 text-right">${t.lots}</td><td class="px-3 py-2.5 text-right">${t.entry}</td><td class="px-3 py-2.5 text-right">${t.current}</td>
+<td class="px-3 py-2.5 text-right text-error">${t.sl}</td><td class="px-3 py-2.5 text-right text-secondary">${t.tp}</td>
+<td class="px-3 py-2.5 text-right ${pColor}">${t.profit>=0?'+':''}$${Number(t.profit).toFixed(2)}</td>
+<td class="px-3 py-2.5 text-right">${t.score??'—'}/10</td><td class="px-3 py-2.5 text-right">${t.duration_min}m</td>
+<td class="px-3 py-2.5">${stage}</td></tr>`}).join('');
+renderGates()}
+
+function renderSentiment(data){
+const sent=data||LIVE_DATA.sentiment;
+if(!sent){
+const grid=document.getElementById('sentiment-grid');
+if(grid)grid.innerHTML='<div class="col-span-4 text-center text-outline font-mono text-xs py-4">Awaiting sentiment data…</div>';
+return;}
+// Live System mini grid
+const grid=document.getElementById('sentiment-grid');
+grid.innerHTML=Object.entries(sent).map(([pair,s])=>{
+const color=s.signal==='BULLISH'?'secondary':s.signal==='BEARISH'?'error':'outline';
+const barW=Math.abs(s.score)*100;const barDir=s.score>=0?'right':'left';
+return `<div class="bg-surface-container rounded-lg p-3 flex items-center gap-3">
+<span class="font-mono text-xs font-bold w-16">${pair.slice(0,3)}/${pair.slice(3)}</span>
+<div class="flex-1"><div class="sentiment-bar w-full"><div class="sentiment-fill bg-${color}" style="width:${barW}%;${barDir==='right'?'left:50%':'right:50%'}"></div><div class="absolute top-1/2 left-1/2 w-px h-3 -translate-y-1/2 bg-outline-variant"></div></div></div>
+<span class="text-[9px] font-mono text-${color} font-bold w-14 text-right">${s.signal.slice(0,4)}</span>
+${s.block?'<span class="text-[8px] text-error font-mono">BLK</span>':''}
+</div>`}).join('');
+// News tab detailed grid
+if(APP.currentTab==='news'||document.getElementById('news-sentiment-detail').children.length===0)renderSentimentDetail(sent)}
+
+function renderSentimentDetail(sent){
+const grid=document.getElementById('news-sentiment-detail');
+grid.innerHTML=Object.entries(sent).map(([pair,s])=>{
+const color=s.signal==='BULLISH'?'secondary':s.signal==='BEARISH'?'error':'outline';
+return `<div class="bg-surface-container rounded-xl p-4 border border-outline-variant/50 flex items-center gap-4">
+<div class="w-20"><span class="font-mono text-sm font-bold">${pair}</span><p class="text-[9px] font-mono text-outline">${s.base_articles||0} articles</p></div>
+<div class="flex-1"><div class="flex justify-between text-[9px] font-mono text-outline mb-1"><span>-1.0</span><span>0</span><span>+1.0</span></div>
+<div class="h-3 bg-surface-container-lowest rounded-full relative overflow-hidden"><div class="absolute top-0 h-full bg-${color}/60 rounded-full" style="left:${50+s.score*50}%;width:${Math.abs(s.score)*50}%;${s.score<0?`left:${50+s.score*50}%`:''}"></div><div class="absolute top-0 left-1/2 w-px h-full bg-outline-variant"></div></div></div>
+<div class="text-right w-20"><span class="px-2 py-1 text-[9px] font-mono font-bold text-${color} bg-${color}/10 border border-${color}/30 rounded-sm">${s.signal}</span>
+${s.block?'<p class="text-[8px] text-error font-mono mt-1">BLOCKED</p>':''}
+<p class="text-[9px] font-mono text-outline mt-1">${s.score>=0?'+':''}${s.score.toFixed(3)}</p></div></div>`}).join('');
+if(sent===LIVE_DATA.sentiment){const ts=Object.values(sent)[0]?.fetched_at;document.getElementById('sentiment-fetched').textContent='Last fetch: '+(ts?new Date(ts).toLocaleTimeString():'—')}}
+
+// ── Session Timer ──
+function renderSession(){
+const s=LIVE_DATA.session;
+if(s){document.getElementById('session-name').textContent=s.session_name;document.getElementById('session-name').className='font-headline text-2xl font-bold '+(s.in_session?'text-secondary':'text-on-surface-variant');
+const saH=(s.utc_hour+2)%24;document.getElementById('session-sa').textContent=`SA Time: ${String(saH).padStart(2,'0')}:${String(new Date().getUTCMinutes()).padStart(2,'0')}`}
+renderGates()}
+let sessionTimer;
+function startSessionClock(){sessionTimer=setInterval(()=>{const now=new Date();const utcH=now.getUTCHours(),utcM=now.getUTCMinutes();
+const saH=(utcH+2)%24;document.getElementById('session-sa').textContent=`SA Time: ${String(saH).padStart(2,'0')}:${String(utcM).padStart(2,'0')}`;
+let target,label;if(utcH>=8&&utcH<11){target=new Date(now);target.setUTCHours(11,0,0,0);label='London closes in'}
+else if(utcH>=13&&utcH<16){target=new Date(now);target.setUTCHours(16,0,0,0);label='NY closes in'}
+else if(utcH<8){target=new Date(now);target.setUTCHours(8,0,0,0);label='London opens in'}
+else if(utcH>=11&&utcH<13){target=new Date(now);target.setUTCHours(13,0,0,0);label='NY opens in'}
+else{target=new Date(now);target.setUTCDate(target.getUTCDate()+1);target.setUTCHours(8,0,0,0);label='London opens in'}
+const diff=Math.max(0,target-now);const h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000),sec=Math.floor((diff%60000)/1000);
+document.getElementById('session-countdown').textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+},1000)}
+
+// ── News/Calendar ──
+function renderCalendar(events){
+const body=document.getElementById('calendar-body');const now=new Date();
+body.innerHTML=events.map(e=>{const d=new Date(e.date);const saH=(d.getUTCHours()+2)%24;
+const timeStr=`${String(saH).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+const dateStr=d.toLocaleDateString('en-ZA',{month:'short',day:'numeric'});
+const diff=Math.abs(d-now);const inWindow=diff<30*60*1000;
+return `<tr class="${inWindow?'bg-error/10 border-l-2 border-error':'hover:bg-surface-container'} transition-colors">
+<td class="px-4 py-2.5 ${inWindow?'text-error font-bold':''}">${dateStr} ${timeStr}</td>
+<td class="px-3 py-2.5"><span class="px-2 py-0.5 text-[9px] font-mono rounded-sm border border-outline-variant">${e.country}</span></td>
+<td class="px-3 py-2.5 ${inWindow?'text-error':''}">${e.title}</td>
+<td class="px-3 py-2.5 text-right text-outline">${e.previous||'—'}</td>
+<td class="px-3 py-2.5 text-right">${e.forecast||'—'}</td>
+<td class="px-3 py-2.5 text-center">${inWindow?'<span class="text-[9px] font-mono text-error bg-error/10 px-2 py-0.5 rounded-sm border border-error/30">ACTIVE</span>':'<span class="text-[9px] font-mono text-outline">—</span>'}</td></tr>`}).join('');
+// Alert banner
+const upcoming=events.find(e=>Math.abs(new Date(e.date)-now)<30*60*1000);
+if(upcoming){document.getElementById('news-alert-banner').classList.remove('hidden');document.getElementById('news-clear-banner').classList.add('hidden');document.getElementById('news-alert-detail').textContent=upcoming.title+' ('+upcoming.country+')'}
+else{document.getElementById('news-alert-banner').classList.add('hidden');document.getElementById('news-clear-banner').classList.remove('hidden')}}
+
+function initNewsTab(){renderSentiment(LIVE_DATA.sentiment);pollNews()}
+
+// ── Polling Layer ──
+async function apiFetch(url,timeout=4000){const r=await fetch(url,{signal:AbortSignal.timeout(timeout)});const j=await r.json();if(j.ok===false)throw new Error(j.error||'API error');return j.data!==undefined?j.data:j}
+
+async function pollStatus(){try{const d=await apiFetch(API_BASE+'/api/status');LIVE_DATA.status=d;APP.apiConnected=true;renderStatus();updatePill()}catch(e){if(!APP.apiConnected)renderStatus()}}
+async function pollAccount(){try{const d=await apiFetch(API_BASE+'/api/account');LIVE_DATA.account=d;renderAccount()}catch(e){}}
+async function pollTrades(){try{const d=await apiFetch(API_BASE+'/api/trades');LIVE_DATA.trades=d;renderTrades()}catch(e){}}
+async function pollCompliance(){try{const d=await apiFetch(API_BASE+'/api/compliance');LIVE_DATA.compliance=d;renderCompliance()}catch(e){}}
+async function pollSession(){try{const d=await apiFetch(API_BASE+'/api/session');LIVE_DATA.session=d;renderSession()}catch(e){}}
+async function pollHistory(){try{const d=await apiFetch(API_BASE+'/api/history?days=30');LIVE_DATA.history=d;renderHistoryKPIs();refreshLabCharts();if(APP.historyInited)renderBotTable()}catch(e){}}
+async function pollSentiment(){try{const d=await apiFetch(API_BASE+'/api/sentiment');LIVE_DATA.sentiment=d;renderSentiment(d)}catch(e){renderSentiment(null)}}
+async function pollNews(){try{const d=await apiFetch(API_BASE+'/api/news');LIVE_DATA.news=d;renderCalendar(Array.isArray(d)?d:[])}catch(e){const body=document.getElementById('calendar-body');if(body)body.innerHTML='<tr><td colspan="6" class="px-4 py-8 text-center text-outline font-mono text-xs">Unable to fetch calendar — check API connection</td></tr>'}}
+
+function updatePill(){const pill=document.getElementById('api-pill'),ts=document.getElementById('last-update');
+if(APP.apiConnected){pill.textContent='LIVE';pill.className='px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-secondary border-secondary/40 bg-secondary/10';ts.classList.remove('hidden');ts.textContent=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+else{pill.textContent='CONNECTING';pill.className='px-2 py-0.5 text-[9px] font-mono uppercase rounded-sm border text-outline border-outline-variant'}}
+
+const POLL_CONFIG=[
+{fn:pollStatus,interval:15000},{fn:pollAccount,interval:5000},{fn:pollTrades,interval:5000},
+{fn:pollCompliance,interval:5000},{fn:pollSession,interval:30000},{fn:pollHistory,interval:120000},
+{fn:pollSentiment,interval:300000},{fn:pollNews,interval:3600000}];
+let pollTimers=[];
+function startPolling(){POLL_CONFIG.forEach(p=>{p.fn();pollTimers.push(setInterval(p.fn,p.interval))})}
+
+// ── Performance Lab History KPIs ──
+function renderHistoryKPIs(){
+const h=LIVE_DATA.history;if(!h?.deals?.length)return;
+const deals=h.deals.filter(d=>d.entry===1);// exit deals only
+const wins=deals.filter(d=>d.profit>0);const losses=deals.filter(d=>d.profit<=0);
+const totalProfit=wins.reduce((s,d)=>s+d.profit,0);const totalLoss=Math.abs(losses.reduce((s,d)=>s+d.profit,0));
+const pf=totalLoss>0?(totalProfit/totalLoss).toFixed(2):'∞';
+const net=deals.reduce((s,d)=>s+d.profit,0);
+const avgScore=deals.filter(d=>d.score).reduce((s,d)=>s+d.score,0)/(deals.filter(d=>d.score).length||1);
+document.getElementById('lab-total-trades').textContent=deals.length;
+document.getElementById('lab-win-rate').textContent=deals.length?(wins.length/deals.length*100).toFixed(1)+'%':'—';
+document.getElementById('lab-pf').textContent=pf;
+const npEl=document.getElementById('lab-net-pnl');npEl.textContent=(net>=0?'+':'')+fmtUSD(net);npEl.className='font-mono text-xl font-bold '+(net>=0?'text-secondary':'text-error');
+document.getElementById('lab-avg-score').textContent=avgScore.toFixed(1)+'/10';
+// By-symbol table
+const symbols={};deals.forEach(d=>{if(!symbols[d.symbol])symbols[d.symbol]={trades:0,wins:0,profit:0,grossWin:0,grossLoss:0,scores:[]};const s=symbols[d.symbol];s.trades++;if(d.profit>0){s.wins++;s.grossWin+=d.profit}else s.grossLoss+=Math.abs(d.profit);s.profit+=d.profit;if(d.score)s.scores.push(d.score)});
+const stb=document.getElementById('symbol-table-body');
+stb.innerHTML=Object.entries(symbols).map(([sym,s])=>{const wr=(s.wins/s.trades*100).toFixed(1);const spf=s.grossLoss>0?(s.grossWin/s.grossLoss).toFixed(2):'∞';const sa=s.scores.length?(s.scores.reduce((a,b)=>a+b,0)/s.scores.length).toFixed(1):'—';
+return `<tr class="hover:bg-surface-container transition-colors"><td class="px-4 py-2.5 font-bold">${sym}</td><td class="px-3 py-2.5 text-right">${s.trades}</td><td class="px-3 py-2.5 text-right ${+wr>=50?'text-secondary':'text-error'}">${wr}%</td><td class="px-3 py-2.5 text-right ${s.profit>=0?'text-secondary':'text-error'}">${s.profit>=0?'+':''}$${s.profit.toFixed(2)}</td><td class="px-3 py-2.5 text-right">${spf}</td><td class="px-3 py-2.5 text-right">${sa}</td></tr>`}).join('')}
+
+// ── Lab Tab Init ──
+function initLabTab(){renderStepper();initEquityCurve();const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);const wr=deals.length?+(deals.filter(d=>d.profit>0).length/deals.length*100).toFixed(0):0;animateHealthScore(wr||0);initHeatmap();initCodePreview()}
+function refreshLabCharts(){if(!APP.labInited)return;initEquityCurve();initHeatmap()}
+
+function renderStepper(){document.getElementById('stepper-container').innerHTML=DEMO_DATA.labSteps.map((s,i)=>{const last=i===DEMO_DATA.labSteps.length-1;const cls=s.status==='complete'?'step-complete':s.status==='processing'?'step-processing':'step-pending';const lc=s.status!=='pending'?'text-primary':'text-outline';const st=s.status==='complete'?'Complete':s.status==='processing'?'Processing...':'Pending';const sc=s.status==='complete'?'text-secondary':s.status==='processing'?'text-primary':'text-outline';
+return `<div class="flex items-center flex-1 gap-3"><div class="flex flex-col items-center flex-1"><div class="${cls}"><div class="step-icon w-10 h-10 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-lg">${s.icon}</span></div></div><p class="font-mono text-[9px] uppercase tracking-widest mt-2 ${lc}">${s.label}</p><p class="font-mono text-[8px] ${sc}">${st}</p></div>${!last?`<div class="h-px w-8 ${s.status==='complete'?'bg-primary/50':'bg-outline-variant'} hidden md:block"></div>`:''}</div>`}).join('')}
+
+function initEquityCurve(){const ctx=document.getElementById('equity-chart').getContext('2d');
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1).sort((a,b)=>new Date(a.time)-new Date(b.time));
+let labels,values;
+if(deals.length){let bal=10000;const pts=[{label:'Start',v:bal}];deals.forEach(d=>{bal+=d.profit;pts.push({label:new Date(d.time).toLocaleDateString('en-ZA',{month:'short',day:'numeric'}),v:+bal.toFixed(2)})});labels=pts.map(p=>p.label);values=pts.map(p=>p.v)}
+else{labels=[];values=[]}
+if(APP.charts.equity){APP.charts.equity.destroy();APP.charts.equity=null;}
+const grad=ctx.createLinearGradient(0,0,0,240);grad.addColorStop(0,'rgba(186,158,255,.18)');grad.addColorStop(1,'rgba(186,158,255,0)');
+APP.charts.equity=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:values,borderColor:'#ba9eff',backgroundColor:grad,borderWidth:2,fill:true,tension:0,pointRadius:3,pointBackgroundColor:'#ba9eff',pointHoverRadius:5}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1,titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:10}},zoom:{zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:'x'},pan:{enabled:true,mode:'x'}}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9}}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()}}}}})}
+
+function animateHealthScore(target){if(APP.healthAnimated)return;APP.healthAnimated=true;const circle=document.getElementById('gauge-circle'),num=document.getElementById('gauge-number');const circ=452.4,start=performance.now(),dur=1400;
+function ease(t){return 1-Math.pow(1-t,3)}function frame(now){const t=Math.min((now-start)/dur,1),e=ease(t);circle.setAttribute('stroke-dashoffset',circ-(circ*e*target/100));num.textContent=Math.round(e*target);if(t<1)requestAnimationFrame(frame)}requestAnimationFrame(frame)}
+
+function initHeatmap(){const c=document.getElementById('heatmap-grid'),tip=document.getElementById('heatmap-tooltip');
+c.innerHTML='';
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);
+const monthMap={};deals.forEach(d=>{const dt=new Date(d.time);const key=dt.toLocaleDateString('en-ZA',{month:'short',year:'2-digit'});if(!monthMap[key])monthMap[key]={profit:0,trades:0,wins:0};monthMap[key].profit+=d.profit;monthMap[key].trades++;if(d.profit>0)monthMap[key].wins++});
+const months=Object.entries(monthMap).map(([month,m])=>({month,pct:+(m.profit/100).toFixed(1),trades:m.trades,winRate:m.trades?+(m.wins/m.trades*100).toFixed(0):0}));
+if(!months.length){c.innerHTML='<div class="text-center text-outline font-mono text-xs py-8 col-span-full">No closed trades yet</div>';return;}
+const maxA=Math.max(...months.map(m=>Math.abs(m.pct)))||1;
+const inner=document.createElement('div');inner.style.display='grid';inner.style.gridTemplateColumns=`repeat(${Math.min(months.length,12)},minmax(48px,1fr))`;inner.style.gap='3px';
+months.forEach(m=>{const cell=document.createElement('div');const int=Math.abs(m.pct)/maxA,pos=m.pct>=0;cell.style.background=pos?`rgba(105,246,184,${.15+int*.55})`:`rgba(255,110,132,${.15+int*.55})`;cell.className='rounded flex flex-col items-center justify-center py-2 cursor-pointer transition-all hover:scale-105';cell.innerHTML=`<span style="font-family:JetBrains Mono;font-size:9px;color:#aaabad">${m.month}</span><span style="font-family:JetBrains Mono;font-size:12px;font-weight:700;color:${pos?'#69f6b8':'#ff6e84'}">${pos?'+':''}${m.pct}%</span>`;
+cell.onmousemove=e=>{tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-8)+'px';tip.innerHTML=`<div class="font-bold text-primary mb-1">${m.month}</div><div>P&L: ${pos?'+':''}${m.pct}%</div><div>Trades: ${m.trades}</div><div>Win: ${m.winRate}%</div>`};cell.onmouseleave=()=>tip.style.display='none';inner.appendChild(cell)});c.appendChild(inner)}
+
+function initCodePreview(){const el=document.getElementById('code-preview');el.textContent=DEMO_DATA.codePreview;if(window.Prism)Prism.highlightElement(el)}
+function copyCode(){navigator.clipboard.writeText(DEMO_DATA.codePreview).then(()=>{document.getElementById('copy-icon').textContent='check';document.getElementById('copy-label').textContent='Copied!';setTimeout(()=>{document.getElementById('copy-icon').textContent='content_copy';document.getElementById('copy-label').textContent='Copy'},2000)})}
+
+// ── History Tab Init ──
+function initHistoryTab(){renderBotTable();initAutotuneChart();initMonteCarloChart();initSensitivityHeatmap()}
+
+const STATUS_LABELS={compiled:'Compiled',testing:'Testing',error:'Error',live:'Live'};
+const colorMap={secondary:'#69f6b8',primary:'#ba9eff',error:'#ff6e84',tertiary:'#699cff'};
+
+function renderBotTable(){
+const search=(document.getElementById('bot-search')?.value||'').toLowerCase();
+const tbody=document.getElementById('bot-table-body'),empty=document.getElementById('bot-empty-state');
+const deals=(LIVE_DATA.history?.deals||[]).filter(d=>d.entry===1);
+if(!deals.length){tbody.innerHTML='';empty.classList.remove('hidden');return;}
+empty.classList.add('hidden');
+// Build per-symbol stats
+const symMap={};deals.forEach(d=>{if(!symMap[d.symbol])symMap[d.symbol]={trades:0,wins:0,profit:0};symMap[d.symbol].trades++;symMap[d.symbol].profit+=d.profit;if(d.profit>0)symMap[d.symbol].wins++});
+const colors=['#ba9eff','#69f6b8','#699cff','#FFD740'];
+let rows=Object.entries(symMap).map(([sym,s],i)=>{const wr=+(s.wins/s.trades*100).toFixed(1);const health=Math.min(100,Math.max(0,+(wr*0.7+(s.profit>0?20:0)).toFixed(0)));const c=colors[i%colors.length];const statusLabel=s.profit>=0?'profitable':'review';return {sym,trades:s.trades,wr,profit:+s.profit.toFixed(2),health,c,statusLabel}});
+const filter=APP.botFilter.status;
+rows=rows.filter(r=>(!search||r.sym.toLowerCase().includes(search))&&(filter==='all'||r.statusLabel===filter));
+if(!rows.length){tbody.innerHTML='';empty.classList.remove('hidden');return;}
+empty.classList.add('hidden');
+tbody.innerHTML=rows.map(r=>`<div class="group bg-surface-container border-l-4 p-4 transition-all hover:bg-surface-container-highest flex flex-col md:grid md:grid-cols-6 items-center gap-3 rounded-lg" style="border-left-color:${r.c}">
+<div class="col-span-2 flex flex-col w-full"><span class="font-headline font-bold text-base" style="color:${r.c}">ISP_v3 — ${r.sym}</span><span class="text-[9px] font-mono text-on-surface-variant uppercase">${r.trades} trades · 30d</span></div>
+<div class="w-full md:w-auto"><span class="font-mono text-sm">${r.sym}</span></div>
+<div class="flex flex-col items-center w-full"><span class="font-mono text-base font-bold" style="color:${r.c}">${r.wr}%</span><div class="w-20 h-1 bg-surface-container-lowest rounded-full overflow-hidden mt-1"><div class="h-full rounded-full" style="width:${r.wr}%;background:${r.c}"></div></div><span class="text-[8px] font-mono text-outline mt-0.5">Win Rate</span></div>
+<div class="flex justify-center w-full"><span class="px-3 py-1 text-[9px] font-mono uppercase rounded-sm border" style="color:${r.c};border-color:${r.c}33;background:${r.c}1a">${r.statusLabel}</span></div>
+<div class="flex items-center justify-end gap-3 w-full"><span class="font-mono text-sm font-bold ${r.profit>=0?'text-secondary':'text-error'}">${r.profit>=0?'+':''}$${r.profit.toFixed(2)}</span><button onclick="openPropChecker('${r.sym}')" class="p-1.5 rounded border border-outline-variant/50 hover:bg-surface-bright" style="color:${r.c}"><span class="material-symbols-outlined text-sm">rule</span></button></div></div>`).join('')}
+
+function setBotFilter(s){APP.botFilter.status=s;document.querySelectorAll('.filter-pill').forEach(b=>{const a=b.dataset.filter===s;b.classList.toggle('text-primary',a);b.classList.toggle('border-primary',a);b.classList.toggle('bg-primary/10',a);b.classList.toggle('text-outline',!a);b.classList.toggle('border-outline-variant',!a)});renderBotTable()}
+
+function openPropChecker(id){
+document.getElementById('prop-checker-bot-name').textContent='ISP_v3 — '+id+' Prop Compliance';
+const o=LIVE_DATA.compliance?.firms?.our_settings;
+const rules=o?[
+{label:'Daily Loss Limit',detail:`${o.daily_dd_pct?.toFixed(3)||'—'}% used / ${o.daily_limit}% allowed`,pass:o.daily_pass??true},
+{label:'Max Drawdown',detail:`${o.max_dd_pct?.toFixed(3)||'—'}% used / ${o.max_dd_limit}% allowed`,pass:o.max_pass??true},
+{label:'Overall Challenge',detail:o.overall_pass?'All limits within bounds':'One or more limits breached',pass:o.overall_pass??true}
+]:[{label:'Compliance data',detail:'Connect bot to see real compliance status',pass:true}];
+document.getElementById('prop-checker-body').innerHTML=rules.map(r=>`<div class="flex items-start gap-3 bg-surface-container rounded-xl p-4 border border-outline-variant/50"><span class="material-symbols-outlined text-lg mt-0.5 flex-shrink-0 ${r.pass?'text-secondary':'text-error'}">${r.pass?'check_circle':'cancel'}</span><div class="flex-1"><p class="font-mono text-sm font-bold ${r.pass?'':'text-error'}">${r.label}</p><p class="font-mono text-xs text-on-surface-variant mt-1">${r.detail}</p></div><span class="text-[8px] font-mono px-2 py-1 rounded-sm ${r.pass?'text-secondary bg-secondary/10 border border-secondary/20':'text-error bg-error/10 border border-error/20'}">${r.pass?'PASS':'FAIL'}</span></div>`).join('');
+document.getElementById('prop-checker').classList.add('open');document.getElementById('prop-backdrop').classList.add('open');document.body.style.overflow='hidden'}
+function closePropChecker(){document.getElementById('prop-checker').classList.remove('open');document.getElementById('prop-backdrop').classList.remove('open');document.body.style.overflow=''}
+
+function initAutotuneChart(){const ctx=document.getElementById('autotune-chart').getContext('2d');const labels=Array.from({length:15},(_,i)=>`W${i+1}`);
+APP.charts.autotune=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Original',data:DEMO_DATA.autotuneOriginal,borderColor:'#747578',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0,fill:false},{label:'Optimized',data:DEMO_DATA.autotuneOptimized,borderColor:'#ba9eff',borderWidth:2.5,pointRadius:0,tension:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9}}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()}}}},plugins:[{id:'deltaPivot',afterDraw(chart){const x=chart.scales.x,ctx2=chart.ctx,xP=x.getPixelForValue(9);ctx2.save();ctx2.strokeStyle='rgba(186,158,255,.4)';ctx2.setLineDash([4,4]);ctx2.lineWidth=1;ctx2.beginPath();ctx2.moveTo(xP,chart.chartArea.top);ctx2.lineTo(xP,chart.chartArea.bottom);ctx2.stroke();ctx2.fillStyle='#ba9eff';ctx2.font='8px JetBrains Mono';ctx2.textAlign='center';ctx2.fillText('DELTA',xP,chart.chartArea.top+12);ctx2.restore()}}]})}
+function toggleAutotuneDataset(i){const c=APP.charts.autotune;if(!c)return;c.data.datasets[i].hidden=!c.data.datasets[i].hidden;c.update()}
+
+function initMonteCarloChart(){const ctx=document.getElementById('montecarlo-chart').getContext('2d');const steps=60,paths=800,drift=.012/252,vol=.024/Math.sqrt(252),start=10000;const labels=Array.from({length:steps+1},(_,i)=>i===0?'Start':`D${i*4}`);
+let seed=42;function lcg(){seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/0xffffffff}function bm(){return Math.sqrt(-2*Math.log(Math.max(lcg(),1e-10)))*Math.cos(2*Math.PI*lcg())}
+const allP=[];for(let p=0;p<paths;p++){const pa=[start];for(let s=0;s<steps;s++)pa.push(pa[pa.length-1]*(1+drift+vol*bm()));allP.push(pa)}
+const p5=allP.map((_,s)=>{const vs=allP.map(p=>p[s]).sort((a,b)=>a-b);return vs[Math.floor(vs.length*.05)]});
+const p95=allP.map((_,s)=>{const vs=allP.map(p=>p[s]).sort((a,b)=>a-b);return vs[Math.floor(vs.length*.95)]});
+const med=allP.map((_,s)=>{const vs=allP.map(p=>p[s]).sort((a,b)=>a-b);return vs[Math.floor(vs.length*.5)]});
+const sampled=[];for(let p=0;p<paths;p+=Math.floor(paths/40))sampled.push({label:'',data:allP[p],borderColor:'rgba(116,117,120,.15)',borderWidth:.7,pointRadius:0,tension:0,fill:false});
+const bg=ctx.createLinearGradient(0,0,0,240);bg.addColorStop(0,'rgba(105,156,255,.1)');bg.addColorStop(1,'rgba(105,156,255,.01)');
+APP.charts.montecarlo=new Chart(ctx,{type:'line',data:{labels,datasets:[...sampled,{label:'Band',data:p95,borderColor:'transparent',backgroundColor:bg,fill:'+1',pointRadius:0,tension:0},{label:'',data:p5,borderColor:'rgba(105,156,255,.3)',borderWidth:1,borderDash:[2,2],fill:false,pointRadius:0,tension:0},{label:'Median',data:med,borderColor:'#699cff',borderWidth:2.5,fill:false,pointRadius:0,tension:0}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:false},tooltip:{filter:i=>i.dataset.label==='Median',backgroundColor:'#1d2023',borderColor:'#46484a',borderWidth:1}},scales:{x:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:8},maxTicksLimit:8}},y:{grid:{color:'rgba(70,72,74,.3)'},ticks:{color:'#747578',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+Math.round(v).toLocaleString()}}}}})}
+
+function initSensitivityHeatmap(){const c=document.getElementById('sensitivity-grid'),g=DEMO_DATA.sensitivityGrid,maxA=Math.max(...g.flat().map(Math.abs)),tip=document.getElementById('sensitivity-tooltip');const fp=[5,7,9,11,13,15,17,19,21,23],sp=[14,18,22,26,30,34,38,42,46,50];
+const w=document.createElement('div');w.style.display='grid';w.style.gridTemplateColumns='repeat(10,1fr)';w.style.gap='2px';
+g.forEach((row,r)=>row.forEach((val,cc)=>{const cell=document.createElement('div');const int=Math.abs(val)/maxA,pos=val>=0;cell.style.paddingTop='100%';cell.style.position='relative';cell.style.background=pos?`rgba(105,246,184,${.05+int*.6})`:`rgba(255,110,132,${.05+int*.6})`;cell.style.borderRadius='2px';cell.style.cursor='pointer';
+cell.onmousemove=e=>{cell.style.transform='scale(1.1)';tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-8)+'px';tip.innerHTML=`<div class="${pos?'text-secondary':'text-error'} font-bold">${pos?'+':''}${val.toFixed(1)}%</div><div>Fast: ${fp[cc]}</div><div>Slow: ${sp[r]}</div>`};
+cell.onmouseleave=()=>{cell.style.transform='';tip.style.display='none'};w.appendChild(cell)}));c.appendChild(w)}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded',()=>{
+const bannerH=sessionStorage.getItem('trial-dismissed')?0:36;adjustBarTop(bannerH);initTrialBanner();
+if(window.ChartZoom)Chart.register(ChartZoom);
+switchTab('live');goToFormStep(1);setBotFilter('all');
+renderGates();startSessionClock();startPolling()});
+</script>
+</body>
+</html>
