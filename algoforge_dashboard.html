@@ -472,7 +472,7 @@ const GATES=[
 {id:5,label:'Volatility',icon:'electric_bolt',src:'ea'},{id:6,label:'Regime',icon:'swap_vert',src:'ea'},
 {id:7,label:'HTF Bias',icon:'trending_up',src:'ea'},{id:8,label:'EMA Signal',icon:'timeline',src:'ea'},
 {id:9,label:'Score ≥6',icon:'star',src:'ea'},{id:10,label:'ONNX',icon:'model_training',src:'ea'},
-{id:11,label:'News',icon:'newspaper',src:'sentiment'},{id:12,label:'Sentiment',icon:'cloud',src:'status'}];
+{id:11,label:'News',icon:'newspaper',src:'news'},{id:12,label:'Sentiment',icon:'cloud',src:'status'}];
 </script>
 
 <!-- JS Part 2: Functions -->
@@ -517,6 +517,7 @@ if(g.src==='compliance'&&LIVE_DATA.compliance){const c=LIVE_DATA.compliance.firm
 else if(g.src==='session'&&LIVE_DATA.session){const s=LIVE_DATA.session;state=s.in_session?'pass':'na';label=s.in_session?s.session_name:'OFF';color=s.in_session?'text-secondary':'text-outline'}
 else if(g.src==='trades'&&LIVE_DATA.trades!==null){const n=(LIVE_DATA.trades||[]).length;state=n<=2?'pass':'fail';label=`${n}/2`;color=n<=2?'text-secondary':'text-error'}
 else if(g.src==='sentiment'){if(LIVE_DATA.sentiment){const blocked=Object.values(LIVE_DATA.sentiment).some(s=>s.block);state=blocked?'fail':'pass';label=blocked?'BLOCKED':'CLEAR';color=blocked?'text-error':'text-secondary'}}
+else if(g.src==='news'){const events=LIVE_DATA.news;if(events===null||events===undefined){state='na';label='N/A'}else{const now=new Date();const blocked=Array.isArray(events)&&events.some(e=>{try{const d=new Date(e.date);const diff=(d-now)/60000;return diff>=-15&&diff<=30}catch{return false}});state=blocked?'fail':'pass';label=blocked?'BLOCKED':'CLEAR';color=blocked?'text-error':'text-secondary'}}
 else if(g.src==='status'&&LIVE_DATA.status){state=LIVE_DATA.status.sentiment?'pass':'fail';label=LIVE_DATA.status.sentiment?'SVC UP':'OFFLINE';color=LIVE_DATA.status.sentiment?'text-secondary':'text-error'}
 return `<div class="gate-cell ${state}"><span class="material-symbols-outlined text-lg ${color} mb-1">${g.icon}</span><p class="text-[9px] font-mono text-outline">${g.label}</p><p class="text-[10px] font-mono font-bold ${color}">${label}</p></div>`}).join('')}
 
