@@ -87,11 +87,13 @@ input int    InpLondonOpenUTC  = 8;
 input int    InpLondonCloseUTC = 16;
 input int    InpNYOpenUTC      = 13;
 input int    InpNYCloseUTC     = 21;
+input int    InpGBPBlockUntilUTC = 8; // Block GBPxxx trades before this UTC hour (London open spike)
 
 input group "=== NEWS FILTER ==="
 input bool   InpUseNews        = true;
 input int    InpNewsBefore_Min = 15;
 input int    InpNewsAfter_Min  = 60;  // was 30 — 60min buffer after 12:30 data before NY open
+input bool   InpUseNewsHTTP   = false; // Use HTTP news filter (ForexFactory — matches dashboard)
 
 input group "=== RISK MANAGEMENT ==="
 input double InpRiskPct        = 0.5;   // % equity per trade
@@ -99,14 +101,16 @@ input double InpDailyLossLimit = 3.0;   // % — prop firms allow 5%, we use 3%
 input double InpMaxDDLimit       = 8.0;   // % — prop firms allow 10%, we use 8%
 input int    InpMaxConsecLosses  = 3;    // consecutive losses before pausing
 input int    InpConsecPauseHours = 8;    // hours to pause after consecutive loss limit
-input double InpMinScoreReq      = 7.0;  // trade quality minimum (was 6.0)
+input double InpMinScoreReq      = 9.0;  // trade quality minimum (raised from 7)
 input int    InpMaxOpenTrades  = 2;
 input bool   InpHalfKelly      = true;
+input double InpSymbolDailyLossCap = 1.0; // Per-symbol daily loss cap % of account (0 = disabled)
+input double InpXAULotMult     = 1.5;  // XAUUSD lot multiplier when HTF bias is clear (1.0 = off)
 
 input group "=== STOP LOSS & TAKE PROFIT ==="
 input double InpSL_ATR_Mult    = 1.5;
 input double InpTP1_RR         = 1.0;
-input double InpTP2_RR         = 2.5;
+input double InpTP2_RR         = 2.0;  // reduced from 2.5 — more achievable on M5
 input double InpTrail_ATR_Mult = 2.5;
 
 input group "=== PHASE 2: ONNX ML FILTER ==="
@@ -186,6 +190,7 @@ bool     g_Halted;
 string   g_HaltReason;
 int      g_ConsecLosses  = 0;
 datetime g_PauseUntil    = 0;
+double   g_DaySymbolPnL  = 0.0;  // running P&L for this symbol today (Step 7)
 
 // FIX [3]: Cached ATR updated only on bar close (safe for ManageOpenTrades on tick)
 double   g_CachedATR = 0.0;
@@ -672,9 +677,31 @@ void OnTick() {
       return;
    }
 
+   // ── GATE 2c: Per-symbol daily loss cap (Step 7) ─────────
+   if(InpSymbolDailyLossCap > 0) {
+      double eq = AccountInfoDouble(ACCOUNT_EQUITY);
+      double capAmt = eq * (InpSymbolDailyLossCap / 100.0);
+      if(g_DaySymbolPnL <= -capAmt) {
+         Log_Skipped("--", 0, "SYMBOL_LOSS_CAP", RegimeStr(g_CachedRegime), BiasStr(g_CachedBias));
+         return;
+      }
+   }
+
    // ── GATE 3: Session filter ───────────────────────────────
    if(InpUseSession && !IsInSession()) return;
-   
+
+   // ── GATE 3b: GBP London-open spike block (Step 5) ───────
+   if(StringFind(_Symbol,"GBP") >= 0 && InpGBPBlockUntilUTC > 0) {
+      MqlDateTime dt;
+      TimeToStruct(TimeCurrent(), dt);
+      double utcH = dt.hour + dt.min/60.0 - (double)InpServerGMTOffset;
+      if(utcH < 0) utcH += 24.0;
+      if(utcH < (double)InpGBPBlockUntilUTC) {
+         Log_Skipped("--", 0, "GBP_OPEN_SKIP", RegimeStr(g_CachedRegime), BiasStr(g_CachedBias));
+         return;
+      }
+   }
+
    // ── GATE 4: Max open trades ──────────────────────────────
    if(CountOpenTrades() >= InpMaxOpenTrades) return;
    
@@ -723,9 +750,12 @@ void OnTick() {
    }
    
    // ── GATE 11: News filter ─────────────────────────────────
-   if(InpUseNews && IsNewsWindow()) {
-      Log_Skipped(sigStr, score, "NEWS_WINDOW", RegimeStr(regime), BiasStr(bias));
-      return;
+   if(InpUseNews) {
+      bool newsBlocked = InpUseNewsHTTP ? IsNewsWindowHTTP() : IsNewsWindow();
+      if(newsBlocked) {
+         Log_Skipped(sigStr, score, "NEWS_WINDOW", RegimeStr(regime), BiasStr(bias));
+         return;
+      }
    }
    
    // ── GATE 12: Sentiment filter (Phase 3) ──────────────────
@@ -783,6 +813,7 @@ void CheckDailyReset() {
    g_DayHalted    = false;
    g_ConsecLosses = 0;
    g_PauseUntil   = 0;
+   g_DaySymbolPnL = 0.0;
    if(g_Halted && StringFind(g_HaltReason, "DAILY") >= 0) {
       g_Halted = false; g_HaltReason = "";
       Print("ISP: Daily reset — trading re-enabled. New balance: ", g_DayStartBal);
@@ -933,9 +964,9 @@ int GetSignal(ENUM_BIAS bias, ENUM_REGIME regime) {
    if(bias==BIAS_BEAR && bearAlign && (bearCross||bearPull) && bearFrac) sig = -1;
    // Range: crossovers only
    if(regime==REGIME_RANGE && sig!=0 && !bullCross && !bearCross) sig = 0;
-   // Block when LTF regime direction opposes entry direction
-   if(regime==REGIME_BEAR_TREND && sig ==  1) sig = 0;
-   if(regime==REGIME_BULL_TREND && sig == -1) sig = 0;
+   // Block when LTF regime direction opposes entry direction (Step 1 — logged for dashboard)
+   if(regime==REGIME_BEAR_TREND && sig ==  1) { sig=0; Log_Skipped("BUY", 0,"COUNTER_REGIME","BEAR_TREND",""); }
+   if(regime==REGIME_BULL_TREND && sig == -1) { sig=0; Log_Skipped("SELL",0,"COUNTER_REGIME","BULL_TREND",""); }
    return sig;
 }
 
@@ -1012,6 +1043,46 @@ bool IsNewsWindow() {
 }
 
 //============================================================
+//  SECTION 17b: HTTP NEWS FILTER (ForexFactory via sentiment service)
+//  Queries localhost:5050/news — same source the ALGOFORGE dashboard uses.
+//  Enable with InpUseNewsHTTP = true to ensure EA matches dashboard status.
+//============================================================
+bool IsNewsWindowHTTP() {
+   g_NewsEventName = "";
+   string url = StringFormat(
+      "http://localhost:5050/news?pair=%s&before_min=%d&after_min=%d",
+      _Symbol, InpNewsBefore_Min, InpNewsAfter_Min);
+   uchar post[], result[];
+   string resHdr;
+   int code = WebRequest("GET", url, "", 3000, post, result, resHdr);
+   if(code != 200) {
+      // Service down — fail open so trading isn't blocked by a dead process
+      if(code < 0 && GetLastError() == 4060)
+         Print("ISP NewsHTTP: add 'http://localhost:5050' in MT5 Options > Expert Advisors > Allow WebRequest");
+      return false;
+   }
+   string json = CharArrayToString(result);
+   // Parse "blocked": true/false
+   int idx = StringFind(json, "\"blocked\":");
+   if(idx < 0) return false;
+   string val = StringSubstr(json, idx + 10, 5);
+   StringTrimLeft(val);
+   StringTrimRight(val);
+   if(StringFind(val, "true") != 0) return false;
+   // Grab the event name for the dashboard label
+   int ei = StringFind(json, "\"blocking_event\":\"");
+   if(ei >= 0) {
+      int start = ei + 18;
+      int end   = StringFind(json, "\"", start);
+      g_NewsEventName = (end > start) ? StringSubstr(json, start, end - start) : "HTTP event";
+   } else {
+      g_NewsEventName = "HTTP event";
+   }
+   PrintFormat("ISP NewsHTTP block: %s", g_NewsEventName);
+   return true;
+}
+
+//============================================================
 //  SECTION 18: POSITION SIZING (FIX [2] — universal formula)
 //============================================================
 double CalcLotSize(double slPriceDist) {
@@ -1031,7 +1102,15 @@ double CalcLotSize(double slPriceDist) {
    double rMult = 1.0;
    if(g_DailyDD_Pct >= InpDailyLossLimit * 0.75) rMult = 0.25;
    else if(g_DailyDD_Pct >= InpDailyLossLimit * 0.5) rMult = 0.5;
-   
+
+   // Step 6: XAUUSD allocation boost when HTF bias is clearly aligned
+   if(StringFind(_Symbol,"XAU") >= 0 &&
+      InpXAULotMult > 1.0 &&
+      g_CachedBias != BIAS_NEUTRAL)
+   {
+      rMult *= InpXAULotMult;
+   }
+
    double rPct = InpRiskPct * rMult;
    if(InpHalfKelly) rPct *= 0.5;
    
@@ -1169,7 +1248,14 @@ void ManageOpenTrades() {
       
       if(type == POSITION_TYPE_BUY) {
          double cur = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         if(cur - opPx < slDist) continue; // Wait for 1R in profit
+         // Step 3: Snap SL to breakeven as soon as 1R profit is reached
+         if(cur - opPx >= slDist && curSL < opPx) {
+            double bePx = NormalizeDouble(opPx + pt*2, dgt);
+            if(!Trade.PositionModify(tkt, bePx, curTP))
+               PrintFormat("ISP BE BUY fail: %d", Trade.ResultRetcode());
+            continue; // Let breakeven settle before trail kicks in
+         }
+         if(cur - opPx < slDist) continue; // Wait for 1R in profit before trail
          double hh = iHigh(_Symbol, PERIOD_M5, 1);
          for(int b=2; b<=14; b++) hh = MathMax(hh, iHigh(_Symbol,PERIOD_M5,b));
          double nsl = NormalizeDouble(hh - trail, dgt);
@@ -1179,6 +1265,13 @@ void ManageOpenTrades() {
          }
       } else {
          double cur = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         // Step 3: Snap SL to breakeven as soon as 1R profit is reached
+         if(opPx - cur >= slDist && curSL > opPx) {
+            double bePx = NormalizeDouble(opPx - pt*2, dgt);
+            if(!Trade.PositionModify(tkt, bePx, curTP))
+               PrintFormat("ISP BE SELL fail: %d", Trade.ResultRetcode());
+            continue; // Let breakeven settle before trail kicks in
+         }
          if(opPx - cur < slDist) continue;
          double ll = iLow(_Symbol, PERIOD_M5, 1);
          for(int b=2; b<=14; b++) ll = MathMin(ll, iLow(_Symbol,PERIOD_M5,b));
@@ -1247,11 +1340,13 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
          g_DayTrades++;
          if(profit >= 0) {
             g_DayWins++; g_DayGWin += profit;
+            g_DaySymbolPnL += profit;  // Step 7: per-symbol daily P&L cap tracking
             if(r.session == "London") g_DayLondonW++;
             if(r.session == "NY")     g_DayNYW++;
             g_ConsecLosses = 0;  // reset streak on win
          } else {
             g_DayLosses++; g_DayGLoss += profit;
+            g_DaySymbolPnL += profit;  // Step 7: per-symbol daily P&L cap tracking
             g_ConsecLosses++;
             if(g_ConsecLosses >= InpMaxConsecLosses) {
                g_PauseUntil = TimeCurrent() + (datetime)(InpConsecPauseHours * 3600);
