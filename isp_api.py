@@ -534,22 +534,40 @@ def api_status():
 def api_session():
     """Current session status based on UTC time."""
     try:
-        gmt_offset = int(os.getenv("GMT_OFFSET", "3"))
         utc_now = datetime.now(timezone.utc)
-        hr = utc_now.hour
-        london = (8 <= hr < 11)
-        ny     = (13 <= hr < 16)
+        hr  = utc_now.hour
+        mn  = utc_now.minute
+        hm  = hr + mn / 60.0  # fractional hour for half-hour boundaries
+
+        # Summer schedule: US=EDT (UTC-4), UK=BST (UTC+1), SA=SAST (UTC+2)
+        # London: 07:00–16:30 UTC  =  09:00–18:30 SAST
+        # New York: 13:30–20:00 UTC = 15:30–22:00 SAST
+        # Overlap:  13:30–16:30 UTC = 15:30–18:30 SAST
+        london  = (7.0 <= hm < 16.5)
+        ny      = (13.5 <= hm < 20.0)
+        overlap = london and ny
+
+        if overlap:
+            session_name = "London+NY Overlap"
+        elif london:
+            session_name = "London"
+        elif ny:
+            session_name = "New York"
+        else:
+            session_name = "Off-Session"
+
         sessions = {
-            "utc_time":    utc_now.isoformat(),
-            "utc_hour":    hr,
-            "london":      london,
-            "ny":          ny,
-            "in_session":  london or ny,
-            "session_name": "London" if london else ("New York" if ny else "Off-Session"),
-            "london_open":  "08:00 UTC",
-            "london_close": "11:00 UTC",
-            "ny_open":      "13:00 UTC",
-            "ny_close":     "16:00 UTC",
+            "utc_time":     utc_now.isoformat(),
+            "utc_hour":     hr,
+            "london":       london,
+            "ny":           ny,
+            "overlap":      overlap,
+            "in_session":   london or ny,
+            "session_name": session_name,
+            "london_open":  "07:00 UTC (09:00 SAST)",
+            "london_close": "16:30 UTC (18:30 SAST)",
+            "ny_open":      "13:30 UTC (15:30 SAST)",
+            "ny_close":     "20:00 UTC (22:00 SAST)",
         }
         return jsonify(_ok(sessions))
     except Exception as e:

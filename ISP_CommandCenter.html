@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ISP Command Center</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05060A; color: #D0D8F0; font-family: 'Consolas', 'Courier New', monospace; }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #05060A; }
+::-webkit-scrollbar-thumb { background: #1C2030; border-radius: 3px; }
+button { cursor: pointer; font-family: inherit; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #1C2030; font-size: 11px; }
+th { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #404860; background: #0C0E14; }
+tr:hover td { background: #0C0E1460; }
+code { background: #0C0E14; padding: 2px 6px; border-radius: 3px; font-size: 11px; border: 1px solid #1C2030; }
+pre { background: #0C0E14; border: 1px solid #1C2030; border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 11px; line-height: 1.6; }
+input[type=file] { display: none; }
+input[type=checkbox] { accent-color: #00E676; width: 14px; height: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const C = {
+  bg:"#05060A", surf:"#0C0E14", card:"#10131C", border:"#1C2030",
+  green:"#00E676", red:"#FF3D57", blue:"#29B6F6", yellow:"#FFD740",
+  purple:"#9C6EFA", orange:"#FF9800", text:"#D0D8F0", dim:"#7080A0", muted:"#404860"
+};
+const API = "http://localhost:5051";
+
+// ── Helpers ──────────────────────────────────────────────────
+const fmt2 = n => (n != null ? Number(n).toFixed(2) : "—");
+const fmt3 = n => (n != null ? Number(n).toFixed(3) : "—");
+const fmtPct = n => (n != null ? Number(n).toFixed(2) + "%" : "—");
+const fmtUSD = n => (n != null ? "$" + Number(n).toLocaleString("en", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—");
+const clr = (val, good="pos") => {
+  if (val == null) return C.dim;
+  if (good === "pos") return val > 0 ? C.green : val < 0 ? C.red : C.dim;
+  return val > 0 ? C.red : val < 0 ? C.green : C.dim; // "neg" = lower is better (DD)
+};
+const ddColor = pct => pct >= 75 ? C.red : pct >= 50 ? C.yellow : C.green;
+
+function Badge({text, color, bg}) {
+  return <span style={{fontSize:9,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",
+    padding:"2px 7px",borderRadius:4,background:bg||(color+"18"),color,border:`1px solid ${color}30`}}>{text}</span>;
+}
+function Dot({on, label}) {
+  return <span style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+    <span style={{width:8,height:8,borderRadius:"50%",background:on?C.green:C.red,
+      boxShadow:on?`0 0 6px ${C.green}60`:`0 0 6px ${C.red}60`,flexShrink:0}}/>
+    <span style={{color:on?C.text:C.dim}}>{label}</span>
+    <span style={{fontSize:9,color:on?C.green:C.red}}>{on?"ONLINE":"OFFLINE"}</span>
+  </span>;
+}
+function ProgressBar({pct, color, height=6}) {
+  const c = ddColor(pct);
+  return <div style={{height,background:C.border,borderRadius:height/2,overflow:"hidden"}}>
+    <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:c,
+      transition:"width .4s",borderRadius:height/2,
+      boxShadow:`0 0 6px ${c}60`}}/>
+  </div>;
+}
+function Card({children, style={}, glow}) {
+  return <div style={{background:C.card,border:`1px solid ${glow?glow+"40":C.border}`,
+    borderRadius:8,padding:16,...style}}>{children}</div>;
+}
+function SectionLabel({text}) {
+  return <div style={{fontSize:9,color:C.muted,letterSpacing:".12em",textTransform:"uppercase",marginBottom:12}}>{text}</div>;
+}
+
+// ── Main App ──────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("live");
+  const [account, setAccount]     = useState(null);
+  const [trades, setTrades]       = useState([]);
+  const [status, setStatus]       = useState(null);
+  const [compliance, setCompliance] = useState(null);
+  const [session, setSession]     = useState(null);
+  const [apiOnline, setApiOnline] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [dailyData, setDailyData] = useState([]);
+  const [checks, setChecks]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem("isp_checks") || "{}"); } catch { return {}; }
+  });
+  const chartRef = useRef(null);
+  const chartInst = useRef(null);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [acct, tr, st, comp, sess] = await Promise.allSettled([
+        fetch(API+"/api/account").then(r=>r.json()),
+        fetch(API+"/api/trades").then(r=>r.json()),
+        fetch(API+"/api/status").then(r=>r.json()),
+        fetch(API+"/api/compliance").then(r=>r.json()),
+        fetch(API+"/api/session").then(r=>r.json()),
+      ]);
+      setApiOnline(true);
+      if (acct.status==="fulfilled" && acct.value?.ok)   setAccount(acct.value.data);
+      if (tr.status==="fulfilled"   && tr.value?.ok)     setTrades(tr.value.data || []);
+      if (st.status==="fulfilled"   && st.value?.ok)     setStatus(st.value.data);
+      if (comp.status==="fulfilled" && comp.value?.ok)   setCompliance(comp.value.data);
+      if (sess.status==="fulfilled" && sess.value?.ok)   setSession(sess.value.data);
+      setLastUpdate(new Date());
+    } catch {
+      setApiOnline(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+    if (!autoRefresh) return;
+    const id = setInterval(fetchAll, 30000);
+    return () => clearInterval(id);
+  }, [fetchAll, autoRefresh]);
+
+  const saveCheck = (key, val) => {
+    const next = {...checks, [key]: val};
+    setChecks(next);
+    localStorage.setItem("isp_checks", JSON.stringify(next));
+  };
+
+  const tabs = [
+    {id:"live",        label:"Live System"},
+    {id:"deploy",      label:"Deploy Checklist"},
+    {id:"performance", label:"Performance"},
+    {id:"prop",        label:"Prop Rules"},
+  ];
+
+  return <div style={{background:C.bg,minHeight:"100vh",color:C.text}}>
+    {/* Header */}
+    <div style={{background:C.surf,borderBottom:`1px solid ${C.border}`,padding:"0 20px",
+      display:"flex",alignItems:"center",justifyContent:"space-between",height:48,
+      position:"sticky",top:0,zIndex:100}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:24,height:24,borderRadius:5,
+          background:"linear-gradient(135deg,#29B6F6,#9C6EFA)",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>⚡</div>
+        <span style={{fontSize:13,fontWeight:800,letterSpacing:".05em"}}>ISP COMMAND CENTER</span>
+        <Badge text="v3.0" color={C.blue}/>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:16}}>
+        {lastUpdate && <span style={{fontSize:10,color:C.muted}}>
+          Updated {lastUpdate.toLocaleTimeString()}
+        </span>}
+        <button onClick={()=>setAutoRefresh(v=>!v)} style={{fontSize:10,fontWeight:700,
+          padding:"4px 10px",borderRadius:4,border:`1px solid ${autoRefresh?C.green+"50":C.border}`,
+          background:autoRefresh?C.green+"15":"transparent",color:autoRefresh?C.green:C.dim}}>
+          {autoRefresh?"AUTO-REFRESH ON":"AUTO-REFRESH OFF"}
+        </button>
+        <button onClick={fetchAll} style={{fontSize:10,fontWeight:700,padding:"4px 10px",
+          borderRadius:4,border:`1px solid ${C.blue}50`,background:C.blue+"15",color:C.blue}}>
+          REFRESH NOW
+        </button>
+        <Dot on={apiOnline} label="API"/>
+      </div>
+    </div>
+
+    {/* Tabs */}
+    <div style={{background:C.surf,borderBottom:`1px solid ${C.border}`,
+      padding:"0 20px",display:"flex",gap:0}}>
+      {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{
+        padding:"10px 18px",fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",
+        color:tab===t.id?C.blue:C.dim,background:"transparent",border:"none",
+        borderBottom:`2px solid ${tab===t.id?C.blue:"transparent"}`,transition:"color .2s"}}>
+        {t.label}
+      </button>)}
+    </div>
+
+    <div style={{padding:"18px 20px",maxWidth:1400,margin:"0 auto"}}>
+      {tab==="live"        && <LiveTab account={account} trades={trades} status={status}
+                                        compliance={compliance} session={session} apiOnline={apiOnline}
+                                        onRefresh={fetchAll}/>}
+      {tab==="deploy"      && <DeployTab checks={checks} onCheck={saveCheck}/>}
+      {tab==="performance" && <PerformanceTab days={dailyData} onLoad={setDailyData}/>}
+      {tab==="prop"        && <PropTab compliance={compliance}/>}
+    </div>
+  </div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 1: LIVE SYSTEM
+// ═══════════════════════════════════════════════════════════════
+// ── Session Timer (ticks every second, fully client-side) ─────────────────
+function SessionTimer() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const SESSIONS = [
+    { name:"London",   open:8,  close:16, saOpen:"10:00", saClose:"18:00" },
+    { name:"New York", open:13, close:21, saOpen:"15:00", saClose:"23:00" },
+  ];
+
+  const utcH   = now.getUTCHours();
+  const utcM   = now.getUTCMinutes();
+  const utcS   = now.getUTCSeconds();
+  const total  = utcH*3600 + utcM*60 + utcS;
+  const saH    = (utcH+2)%24;
+  const pad    = n => String(n).padStart(2,"0");
+  const saTime = `${pad(saH)}:${pad(utcM)}:${pad(utcS)}`;
+
+  const fmt = s => {
+    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+    return h>0 ? `${h}h ${pad(m)}m ${pad(sec)}s` : `${pad(m)}m ${pad(sec)}s`;
+  };
+
+  let cur=null, nxt=null, secsClose=0, secsNext=0;
+  for (const s of SESSIONS) {
+    if (total >= s.open*3600 && total < s.close*3600) { cur=s; secsClose=s.close*3600-total; break; }
+  }
+  if (!cur) {
+    for (const s of SESSIONS) {
+      if (s.open*3600 > total) { nxt=s; secsNext=s.open*3600-total; break; }
+    }
+    if (!nxt) { nxt=SESSIONS[0]; secsNext=(86400-total)+SESSIONS[0].open*3600; }
+  }
+
+  return <Card>
+    <SectionLabel text="Session Timer"/>
+    <div style={{textAlign:"center",padding:"6px 0"}}>
+      {cur ? <>
+        <div style={{fontSize:22,fontWeight:800,color:C.green,marginBottom:2}}>🟢 {cur.name.toUpperCase()}</div>
+        <div style={{fontSize:10,color:C.muted,marginBottom:8,letterSpacing:1}}>IN SESSION</div>
+        <div style={{fontSize:20,fontWeight:700,color:C.yellow,fontFamily:"monospace",marginBottom:2}}>{fmt(secsClose)}</div>
+        <div style={{fontSize:9,color:C.muted,marginBottom:8}}>until session close</div>
+      </> : <>
+        <div style={{fontSize:18,fontWeight:800,color:C.muted,marginBottom:2}}>🔴 OFF-SESSION</div>
+        <div style={{fontSize:10,color:C.muted,marginBottom:8,letterSpacing:1}}>{nxt?.name} opens in</div>
+        <div style={{fontSize:20,fontWeight:700,color:C.blue,fontFamily:"monospace",marginBottom:2}}>{fmt(secsNext)}</div>
+        <div style={{fontSize:9,color:C.muted,marginBottom:8}}>SA time now: {saTime}</div>
+      </>}
+      <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,fontSize:9,color:C.muted,lineHeight:1.9}}>
+        {SESSIONS.map(s=><div key={s.name}>
+          <span style={{color:cur?.name===s.name?C.green:C.text}}>{s.name}</span>
+          <span style={{color:C.muted}}> {s.saOpen}–{s.saClose} SA</span>
+        </div>)}
+      </div>
+    </div>
+  </Card>;
+}
+
+function LiveTab({account, trades, status, compliance, session, apiOnline, onRefresh}) {
+  if (!apiOnline) return <OfflineState onRefresh={onRefresh}/>;
+  const our = compliance?.firms?.our_settings;
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    {/* Service health row */}
+    <Card>
+      <SectionLabel text="Service health"/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16}}>
+        <Dot on={status?.api}       label="API Server"/>
+        <Dot on={status?.mt5}       label="MT5 Terminal"/>
+        <Dot on={status?.sentiment} label="Sentiment Svc"/>
+        <Dot on={status?.monitor}   label="Monitor/Alerts"/>
+      </div>
+      {status?.mt5_terminal && <div style={{marginTop:10,fontSize:10,color:C.muted}}>
+        MT5: {status.mt5_terminal.name} (build {status.mt5_terminal.build})
+        {status.mt5_account && ` · Account ${status.mt5_account.login} · ${status.mt5_account.server}`}
+      </div>}
+    </Card>
+
+    {/* Account + compliance grid */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      {/* Account strip */}
+      <Card>
+        <SectionLabel text="Account"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+          {[
+            {l:"Balance",   v:fmtUSD(account?.balance),   c:C.blue},
+            {l:"Equity",    v:fmtUSD(account?.equity),    c:C.blue},
+            {l:"Day P&L",   v:(account?.day_pnl!=null?(account.day_pnl>=0?"+":"")+fmtUSD(account.day_pnl):"—"),
+             c:clr(account?.day_pnl)},
+            {l:"Open P&L",  v:(account?.profit!=null?(account.profit>=0?"+":"")+fmtUSD(account.profit):"—"),
+             c:clr(account?.profit)},
+            {l:"Margin",    v:fmtUSD(account?.margin),    c:C.dim},
+            {l:"Free Margin",v:fmtUSD(account?.free_margin),c:account?.free_margin>0?C.green:C.red},
+          ].map(x=><div key={x.l}>
+            <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>{x.l}</div>
+            <div style={{fontSize:16,fontWeight:700,color:x.c}}>{x.v}</div>
+          </div>)}
+        </div>
+      </Card>
+
+      {/* Compliance bars */}
+      <Card glow={our?.overall_pass?C.green:C.red}>
+        <SectionLabel text="Prop firm compliance"/>
+        {our ? <>
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span style={{color:C.dim}}>Daily DD used</span>
+              <span style={{color:ddColor(our.daily_pct_used),fontWeight:700}}>
+                {fmtPct(our.daily_dd_pct)} / {our.daily_limit}%
+                <span style={{fontSize:9,color:C.muted,marginLeft:6}}>
+                  {fmtPct(our.daily_margin)} buffer
+                </span>
+              </span>
+            </div>
+            <ProgressBar pct={our.daily_pct_used} height={8}/>
+          </div>
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span style={{color:C.dim}}>Max DD used</span>
+              <span style={{color:ddColor(our.max_pct_used),fontWeight:700}}>
+                {fmtPct(our.max_dd_pct)} / {our.max_dd_limit}%
+                <span style={{fontSize:9,color:C.muted,marginLeft:6}}>
+                  {fmtPct(our.max_margin)} buffer
+                </span>
+              </span>
+            </div>
+            <ProgressBar pct={our.max_pct_used} height={8}/>
+          </div>
+          <div style={{marginTop:14,display:"flex",gap:8}}>
+            <Badge text={our.daily_pass?"Daily PASS":"Daily FAIL"} color={our.daily_pass?C.green:C.red}/>
+            <Badge text={our.max_pass?"Max DD PASS":"Max DD FAIL"} color={our.max_pass?C.green:C.red}/>
+            <Badge text={our.overall_pass?"CHALLENGE OK":"CHALLENGE AT RISK"} color={our.overall_pass?C.green:C.red}/>
+          </div>
+        </> : <div style={{color:C.muted,fontSize:11}}>Connecting to MT5…</div>}
+      </Card>
+    </div>
+
+    {/* Session + Gate panel */}
+    <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:16}}>
+      <SessionTimer/>
+
+      <Card>
+        <SectionLabel text="12-gate status (API-observable gates only)"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8}}>
+          {[
+            {n:1, label:"New Bar",   state:"grey",  note:"EA-internal"},
+            {n:2, label:"Prop Rules",state:our?.overall_pass?"green":"red",note:our?.overall_pass?"Pass":"BREACHED"},
+            {n:3, label:"Session",   state:session?.in_session?"green":"yellow",note:session?.session_name||"—"},
+            {n:4, label:"Max Trades",state:(trades?.length||0)<2?"green":"red",note:`${trades?.length||0}/2 open`},
+            {n:5, label:"Volatility",state:"grey",  note:"EA-internal"},
+            {n:6, label:"Regime",    state:"grey",  note:"EA-internal"},
+            {n:7, label:"HTF Bias",  state:"grey",  note:"EA-internal"},
+            {n:8, label:"EMA Signal",state:"grey",  note:"EA-internal"},
+            {n:9, label:"Score ≥6",  state:"grey",  note:"EA-internal"},
+            {n:10,label:"ONNX",      state:"grey",  note:"EA-internal"},
+            {n:11,label:"News",      state:"grey",  note:"EA-internal"},
+            {n:12,label:"Sentiment", state:status?.sentiment?"green":"yellow",note:status?.sentiment?"Service Up":"Svc Offline"},
+          ].map(g=>{
+            const gc = g.state==="green"?C.green:g.state==="red"?C.red:g.state==="yellow"?C.yellow:C.muted;
+            return <div key={g.n} style={{background:C.surf,border:`1px solid ${gc}30`,borderRadius:6,
+              padding:"8px 10px",textAlign:"center"}}>
+              <div style={{fontSize:9,color:C.muted,marginBottom:3}}>Gate {g.n}</div>
+              <div style={{fontSize:10,fontWeight:700,color:gc,marginBottom:2}}>{g.label}</div>
+              <div style={{fontSize:9,color:C.muted}}>{g.note}</div>
+            </div>;
+          })}
+        </div>
+        <div style={{marginTop:8,fontSize:9,color:C.muted}}>
+          Grey gates are evaluated inside the MT5 EA — they cannot be read externally.
+          Check the EA's on-chart HUD for their real-time status.
+        </div>
+      </Card>
+    </div>
+
+    {/* Open trades */}
+    <Card>
+      <SectionLabel text={`Open trades (${trades?.length||0})`}/>
+      {trades?.length > 0 ? <table>
+        <thead><tr>
+          <th>Symbol</th><th>Dir</th><th>Lots</th><th>Entry</th>
+          <th>Current</th><th>SL</th><th>TP</th><th>P&L</th>
+          <th>Score</th><th>Duration</th><th>Type</th>
+        </tr></thead>
+        <tbody>{trades.map(t=><tr key={t.ticket}>
+          <td style={{color:C.blue,fontWeight:700}}>{t.symbol}</td>
+          <td><Badge text={t.type} color={t.type==="BUY"?C.green:C.red}/></td>
+          <td>{t.lots}</td>
+          <td style={{fontFamily:"monospace"}}>{t.entry}</td>
+          <td style={{fontFamily:"monospace"}}>{t.current}</td>
+          <td style={{fontFamily:"monospace",color:C.red}}>{t.sl}</td>
+          <td style={{fontFamily:"monospace",color:C.green}}>{t.tp}</td>
+          <td style={{color:clr(t.profit),fontWeight:700}}>{(t.profit>=0?"+":"")+fmtUSD(t.profit)}</td>
+          <td style={{color:t.score>=7?C.green:t.score>=5?C.yellow:C.red}}>{t.score}/10</td>
+          <td style={{color:C.dim}}>{t.duration_min}m</td>
+          <td><Badge text={t.is_tp1?"TP1":"TP2"} color={t.is_tp1?C.blue:C.purple}/></td>
+        </tr>)}</tbody>
+      </table> : <div style={{color:C.muted,fontSize:11,padding:"8px 0"}}>No open ISP positions.</div>}
+    </Card>
+  </div>;
+}
+
+function OfflineState({onRefresh}) {
+  return <Card style={{textAlign:"center",padding:"48px 32px"}}>
+    <div style={{fontSize:32,marginBottom:16}}>📡</div>
+    <div style={{fontSize:18,fontWeight:700,color:C.red,marginBottom:8}}>API Server Offline</div>
+    <div style={{fontSize:12,color:C.dim,marginBottom:24,lineHeight:1.7}}>
+      The ISP API server is not running.<br/>
+      Start it with: <code>python isp_launcher.py</code><br/>
+      Or just the API: <code>python isp_api.py</code>
+    </div>
+    <button onClick={onRefresh} style={{padding:"8px 24px",fontSize:11,fontWeight:700,
+      background:C.blue+"20",color:C.blue,border:`1px solid ${C.blue}50`,borderRadius:5}}>
+      RETRY CONNECTION
+    </button>
+  </Card>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 2: DEPLOY CHECKLIST
+// ═══════════════════════════════════════════════════════════════
+const DEPLOY_PHASES = [
+  {
+    id:"p1", label:"Phase 1 — Core EA", color:C.green,
+    steps:[
+      {id:"p1_1", text:"Copy ISP_EA_Final_v3.mq5 to [MT5 Data Folder] > MQL5 > Experts"},
+      {id:"p1_2", text:"Open MetaEditor (press F4 in MT5) and open the file"},
+      {id:"p1_3", text:"Compile with F7 — should show 0 errors, 0 warnings"},
+      {id:"p1_4", text:"Drag EA onto EURUSD M5 chart. Repeat for GBPUSD/USDJPY/XAUUSD"},
+      {id:"p1_5", text:"EA settings: Magic 202601 (EURUSD), 202602 (GBPUSD), 202603 (USDJPY), 202604 (XAUUSD)"},
+      {id:"p1_6", text:"EA settings: RiskPct=0.5, DailyLossLimit=3.0, MaxDDLimit=8.0, MinScoreReq=6.0"},
+      {id:"p1_7", text:"Enable Algo Trading in MT5 toolbar (green robot icon must be ON)"},
+      {id:"p1_8", text:"Verify on-chart HUD shows 'ACTIVE — scanning' during London/NY session"},
+    ]
+  },
+  {
+    id:"p2", label:"Phase 2 — ML (ONNX)", color:C.purple,
+    steps:[
+      {id:"p2_1", text:"Make sure MT5 is open and logged in to your account"},
+      {id:"p2_2", text:"Run: python isp_data_collector.py  (takes ~5 mins)"},
+      {id:"p2_3", text:"Run: python isp_feature_engineer.py"},
+      {id:"p2_4", text:"Run: python isp_catboost_train.py --symbol ALL  (takes ~10 mins)"},
+      {id:"p2_5", text:"Run: python isp_onnx_export.py --symbol ALL"},
+      {id:"p2_6", text:"Copy isp_data/onnx/EURUSD_model.onnx to MT5 Data Folder/MQL5/Files/ISP_Models/"},
+      {id:"p2_7", text:"Set InpUseONNX=true and InpONNXModelPath=ISP_Models\\EURUSD_model.onnx in EA"},
+      {id:"p2_8", text:"Recompile EA (F7) — HUD should show P2 ONNX: ACTIVE"},
+    ]
+  },
+  {
+    id:"p3", label:"Phase 3 — Sentiment", color:C.orange,
+    steps:[
+      {id:"p3_1", text:"Get free Alpha Vantage key at alphavantage.co/support/#api-key"},
+      {id:"p3_2", text:"Add ALPHAVANTAGE_KEY=yourkey to .env file"},
+      {id:"p3_3", text:"Run: python isp_sentiment_service.py (keep running)"},
+      {id:"p3_4", text:"Test it: open http://localhost:5050/health in browser"},
+      {id:"p3_5", text:"In MT5: Tools > Options > Expert Advisors > Allow WebRequest > add http://localhost:5050"},
+      {id:"p3_6", text:"Set InpUseSentiment=true in EA settings"},
+      {id:"p3_7", text:"Recompile and verify HUD shows P3 Sent: ON"},
+    ]
+  },
+  {
+    id:"p4", label:"Phase 4 — Monitor", color:C.yellow,
+    steps:[
+      {id:"p4_1", text:"Create Telegram bot: open Telegram, chat with @BotFather, send /newbot"},
+      {id:"p4_2", text:"Copy the bot token and add TELEGRAM_TOKEN=... to .env"},
+      {id:"p4_3", text:"Get your chat ID: chat with @userinfobot, copy the number"},
+      {id:"p4_4", text:"Add TELEGRAM_CHAT_ID=... to .env"},
+      {id:"p4_5", text:"Run: python isp_launcher.py (starts all services + this dashboard)"},
+      {id:"p4_6", text:"Open http://localhost:5051 — Live tab should show all services green"},
+      {id:"p4_7", text:"Test: send a test message from your bot to verify alerts work"},
+    ]
+  },
+];
+
+const INTEGRATION_CHECKS = [
+  {id:"i1",  text:"MT5 auto-trading enabled",          how:"MT5 toolbar — green robot icon must be ON",                risk:"EA never fires orders"},
+  {id:"i2",  text:"WebRequest enabled for :5050",       how:"Tools > Options > EA > Allow WebRequest > add http://localhost:5050", risk:"Sentiment filter crashes"},
+  {id:"i3",  text:"4 EAs with unique magic numbers",    how:"202601 EURUSD · 202602 GBPUSD · 202603 USDJPY · 202604 XAUUSD",   risk:"Trades mixed up in logs"},
+  {id:"i4",  text:"ISP_Logs folder exists in MT5 Files",how:"Created automatically by EA — verify in MT5 Files/Common",        risk:"CSV logging silently fails"},
+  {id:"i5",  text:"Sentiment service running on :5050", how:"python isp_sentiment_service.py — check /health endpoint",        risk:"Phase 3 skipped (safe)"},
+  {id:"i6",  text:"Monitor running with Telegram tokens",how:"Set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID in .env",                risk:"No alerts — flying blind"},
+  {id:"i7",  text:"API server running on :5051",        how:"python isp_api.py — open http://localhost:5051",                  risk:"No live dashboard"},
+  {id:"i8",  text:"VPS latency < 5ms to broker",        how:"Use ForexVPS.net or TradingFX VPS in London/NY datacenter",       risk:"Slippage on fast moves"},
+];
+
+function DeployTab({checks, onCheck}) {
+  const total   = DEPLOY_PHASES.reduce((s,p)=>s+p.steps.length,0) + INTEGRATION_CHECKS.length;
+  const done    = Object.values(checks).filter(Boolean).length;
+  const pct     = Math.round(done/total*100);
+  const pctColor = pct>=80?C.green:pct>=50?C.yellow:C.red;
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    {/* Progress */}
+    <div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16,alignItems:"center"}}>
+      <Card style={{textAlign:"center",padding:"20px 12px"}} glow={pctColor}>
+        <div style={{fontSize:42,fontWeight:900,color:pctColor,lineHeight:1}}>{pct}</div>
+        <div style={{fontSize:9,color:C.muted,marginTop:4}}>SETUP COMPLETE</div>
+        <div style={{marginTop:8,fontSize:10,color:C.dim}}>{done} / {total} steps</div>
+        <div style={{marginTop:6,height:4,background:C.border,borderRadius:2}}>
+          <div style={{height:"100%",width:pct+"%",background:pctColor,borderRadius:2,transition:"width .4s"}}/>
+        </div>
+      </Card>
+      <Card>
+        <SectionLabel text="Quick commands (copy & run in terminal)"/>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {[
+            ["Start everything",     "python isp_launcher.py"],
+            ["Check config only",    "python isp_launcher.py --check"],
+            ["Health diagnostics",   "python isp_healthcheck.py"],
+            ["ML training (once)",   "python isp_data_collector.py && python isp_feature_engineer.py && python isp_catboost_train.py --symbol ALL && python isp_onnx_export.py --symbol ALL"],
+            ["Install dependencies", "pip install -r requirements.txt"],
+          ].map(([l,cmd])=><div key={l} style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:10,color:C.dim,minWidth:130,flexShrink:0}}>{l}</span>
+            <pre style={{margin:0,flex:1,padding:"6px 10px",fontSize:11}}>{cmd}</pre>
+          </div>)}
+        </div>
+      </Card>
+    </div>
+
+    {/* Phase setup cards */}
+    {DEPLOY_PHASES.map(phase=>{
+      const phaseDone = phase.steps.filter(s=>checks[s.id]).length;
+      return <Card key={phase.id} glow={phaseDone===phase.steps.length?phase.color:undefined}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:800,color:phase.color}}>{phase.label}</div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <span style={{fontSize:10,color:C.muted}}>{phaseDone}/{phase.steps.length} done</span>
+            <Badge text={phaseDone===phase.steps.length?"COMPLETE":"IN PROGRESS"}
+                   color={phaseDone===phase.steps.length?phase.color:C.muted}/>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {phase.steps.map((s,i)=><label key={s.id}
+            style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer",
+              opacity:checks[s.id]?.5:1,transition:"opacity .2s"}}>
+            <input type="checkbox" checked={!!checks[s.id]}
+              onChange={e=>onCheck(s.id,e.target.checked)} style={{marginTop:2,flexShrink:0}}/>
+            <span style={{fontSize:11,color:checks[s.id]?C.muted:C.text,lineHeight:1.5}}>
+              <span style={{color:C.muted,marginRight:6}}>{i+1}.</span>{s.text}
+            </span>
+          </label>)}
+        </div>
+      </Card>;
+    })}
+
+    {/* Integration checklist */}
+    <Card>
+      <SectionLabel text="Integration checklist — verify before any prop firm challenge"/>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {INTEGRATION_CHECKS.map(item=><label key={item.id}
+          style={{display:"flex",gap:12,alignItems:"flex-start",cursor:"pointer",
+            background:C.surf,borderRadius:6,padding:"10px 14px",
+            border:`1px solid ${checks[item.id]?C.green+"30":C.border}`,
+            opacity:checks[item.id]?.6:1,transition:"all .2s"}}>
+          <input type="checkbox" checked={!!checks[item.id]}
+            onChange={e=>onCheck(item.id,e.target.checked)} style={{marginTop:2,flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12,fontWeight:700,color:checks[item.id]?C.dim:C.text}}>{item.text}</div>
+            <div style={{fontSize:10,color:C.blue,marginTop:3}}><span style={{color:C.muted}}>How: </span>{item.how}</div>
+            <div style={{fontSize:10,color:C.yellow,marginTop:2}}><span style={{color:C.muted}}>Risk if skipped: </span>{item.risk}</div>
+          </div>
+        </label>)}
+      </div>
+    </Card>
+  </div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 3: PERFORMANCE
+// ═══════════════════════════════════════════════════════════════
+function PerformanceTab({days, onLoad}) {
+  const fileRef = useRef(null);
+  const chartRef = useRef(null);
+  const chartInst = useRef(null);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoMsg, setAutoMsg] = useState("");
+
+  // Auto-load daily summaries from API on mount
+  useEffect(() => {
+    setAutoLoading(true);
+    setAutoMsg("Loading daily logs from ISP_Logs...");
+    fetch(API + "/api/daily?days=90")
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok && res.data?.rows?.length > 0) {
+          onLoad(res.data.rows);
+          setAutoMsg(`✅ ${res.data.rows.length} daily entries loaded`);
+        } else {
+          setAutoMsg("⚠️ No daily logs found — EA may not have logged any yet");
+        }
+      })
+      .catch(() => setAutoMsg("❌ Could not reach API — is isp_launcher.py running?"))
+      .finally(() => setAutoLoading(false));
+  }, []);
+
+  const parseCSV = (text) => {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+    const header = lines[0].split(',').map(h=>h.trim());
+    const dataSep = lines[1].includes('\t') ? '\t' : ',';
+    return lines.slice(1).map(line => {
+      const vals = line.split(dataSep).map(v=>v.trim());
+      const row = {};
+      header.forEach((h,i) => row[h] = vals[i] || "");
+      return row;
+    }).filter(r => r.Date);
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = parseCSV(ev.target.result);
+      if (!rows.length) { setAutoMsg("⚠️ No data found — select an ISP_Daily_*.csv file"); return; }
+      const sym = rows[0]?.Symbol;
+      onLoad(prev => [...(sym ? prev.filter(r => r.Symbol !== sym) : []), ...rows]);
+      setAutoMsg(`✅ Loaded ${rows.length} rows from ${file.name}`);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  // ── Aggregate stats ────────────────────────────────────────
+  const totalTrades = days.reduce((s,r) => s + parseInt(r.Trades||0), 0);
+  const totalWins   = days.reduce((s,r) => s + parseInt(r.Wins||0), 0);
+  const totalNetPL  = days.reduce((s,r) => s + parseFloat(r.NetProfit||0), 0);
+  const totalGW     = days.reduce((s,r) => s + parseFloat(r.GrossWin||0), 0);
+  const totalGL     = Math.abs(days.reduce((s,r) => s + parseFloat(r.GrossLoss||0), 0));
+  const avgWR       = totalTrades > 0 ? (totalWins/totalTrades*100).toFixed(1) : "—";
+  const avgPF       = totalGL > 0 ? (totalGW/totalGL).toFixed(2) : "—";
+  const haltCount   = days.filter(r => (r.HaltOccurred||"").toUpperCase() === "YES").length;
+  const avgScore    = days.length > 0
+    ? (days.reduce((s,r)=>s+parseFloat(r.AvgScore||0),0)/days.length).toFixed(1) : "—";
+
+  // ── Per-symbol breakdown ───────────────────────────────────
+  const bySymbol = {};
+  days.forEach(r => {
+    const sym = r.Symbol || "UNKNOWN";
+    if (!bySymbol[sym]) bySymbol[sym] = {days:0,trades:0,wins:0,netPL:0,gw:0,gl:0,scoreSum:0,halts:0};
+    const d = bySymbol[sym];
+    d.days++;
+    d.trades  += parseInt(r.Trades||0);
+    d.wins    += parseInt(r.Wins||0);
+    d.netPL   += parseFloat(r.NetProfit||0);
+    d.gw      += parseFloat(r.GrossWin||0);
+    d.gl      += Math.abs(parseFloat(r.GrossLoss||0));
+    d.scoreSum+= parseFloat(r.AvgScore||0);
+    if ((r.HaltOccurred||"").toUpperCase() === "YES") d.halts++;
+  });
+
+  // ── Session totals ─────────────────────────────────────────
+  let londonTrades=0, londonWins=0, nyTrades=0, nyWins=0;
+  days.forEach(r => {
+    const lt = parseInt(r.LondonTrades||0);
+    const nt = parseInt(r.NYTrades||0);
+    londonTrades += lt;
+    londonWins   += Math.round(lt * parseFloat(r.LondonWR||0) / 100);
+    nyTrades     += nt;
+    nyWins       += Math.round(nt * parseFloat(r.NYWR||0) / 100);
+  });
+
+  // ── Halt events ────────────────────────────────────────────
+  const halts = days
+    .filter(r => (r.HaltOccurred||"").toUpperCase() === "YES")
+    .sort((a,b) => a.Date < b.Date ? 1 : -1);
+
+  // ── Equity curve: sum NetProfit per date across symbols ────
+  const dateMap = {};
+  days.forEach(r => { dateMap[r.Date] = (dateMap[r.Date] || 0) + parseFloat(r.NetProfit||0); });
+  const sortedDates = Object.keys(dateMap).sort();
+
+  useEffect(() => {
+    if (!chartRef.current || !sortedDates.length) return;
+    if (chartInst.current) chartInst.current.destroy();
+    let running = 0;
+    const data = sortedDates.map(d => parseFloat((running += dateMap[d]).toFixed(2)));
+    chartInst.current = new Chart(chartRef.current, {
+      type:"line",
+      data:{
+        labels: sortedDates,
+        datasets:[{
+          label:"Cumulative P&L",
+          data,
+          borderColor:C.blue,
+          backgroundColor:C.blue+"20",
+          fill:true, tension:.3, pointRadius:3, pointHoverRadius:5,
+        }]
+      },
+      options:{
+        responsive:true,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>"P&L: $"+ctx.raw.toFixed(2)}}},
+        scales:{
+          x:{ticks:{color:C.muted,font:{size:9},maxTicksLimit:12},grid:{color:C.border}},
+          y:{ticks:{color:C.muted,font:{size:9},callback:v=>"$"+v.toFixed(0)},grid:{color:C.border}}
+        }
+      }
+    });
+    return () => { if(chartInst.current) chartInst.current.destroy(); };
+  }, [days]);
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+    {/* Header / load bar */}
+    <Card>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <button onClick={()=>fileRef.current?.click()} style={{padding:"8px 20px",fontSize:11,fontWeight:700,
+          background:C.blue+"20",color:C.blue,border:`1px solid ${C.blue}50`,borderRadius:5}}>
+          LOAD ISP_DAILY CSV
+        </button>
+        <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{display:"none"}}/>
+        <span style={{fontSize:11,color:autoLoading?C.yellow:days.length>0?C.green:C.muted}}>
+          {autoLoading ? "⏳ Loading..." : autoMsg || (days.length>0
+            ? `✅ ${days.length} daily entries across ${Object.keys(bySymbol).length} symbol(s)`
+            : "Connecting to ISP_Logs...")}
+        </span>
+      </div>
+    </Card>
+
+    {days.length > 0 && <>
+
+      {/* KPI strip */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12}}>
+        {[
+          {l:"Total Trades",  v:totalTrades,                                c:C.blue},
+          {l:"Win Rate",      v:avgWR+"%",                                  c:parseFloat(avgWR)>=55?C.green:C.yellow},
+          {l:"Profit Factor", v:avgPF,                                      c:parseFloat(avgPF)>=1.4?C.green:C.red},
+          {l:"Net P&L",       v:(totalNetPL>=0?"+":"")+fmtUSD(totalNetPL), c:clr(totalNetPL)},
+          {l:"Avg Score",     v:avgScore+"/10",                             c:parseFloat(avgScore)>=6.5?C.green:C.yellow},
+          {l:"Halt Events",   v:haltCount,                                  c:haltCount>0?C.red:C.green},
+        ].map(x=><Card key={x.l} style={{padding:"12px 14px"}}>
+          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>{x.l}</div>
+          <div style={{fontSize:20,fontWeight:700,color:x.c}}>{x.v}</div>
+        </Card>)}
+      </div>
+
+      {/* Equity curve */}
+      <Card>
+        <SectionLabel text="Cumulative P&L — all symbols combined"/>
+        <canvas ref={chartRef} height="180"/>
+      </Card>
+
+      {/* Symbol + Session breakdown */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <Card>
+          <SectionLabel text="By symbol"/>
+          <table>
+            <thead><tr><th>Symbol</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Prof Factor</th><th>Avg Score</th><th>Halts</th></tr></thead>
+            <tbody>{Object.entries(bySymbol).map(([sym,d])=>{
+              const wr = d.trades ? (d.wins/d.trades*100).toFixed(1) : "—";
+              const pf = d.gl > 0 ? (d.gw/d.gl).toFixed(2) : "—";
+              const sc = d.days ? (d.scoreSum/d.days).toFixed(1) : "—";
+              return <tr key={sym}>
+                <td style={{color:C.blue,fontWeight:700}}>{sym}</td>
+                <td>{d.trades}</td>
+                <td style={{color:parseFloat(wr)>=55?C.green:C.yellow}}>{wr}%</td>
+                <td style={{color:clr(d.netPL),fontWeight:700}}>{(d.netPL>=0?"+":"")+fmtUSD(d.netPL)}</td>
+                <td style={{color:parseFloat(pf)>=1.4?C.green:C.red}}>{pf}</td>
+                <td style={{color:parseFloat(sc)>=6.5?C.green:C.yellow}}>{sc}</td>
+                <td style={{color:d.halts>0?C.red:C.green,fontWeight:700}}>{d.halts}</td>
+              </tr>;
+            })}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card>
+          <SectionLabel text="By session"/>
+          <table>
+            <thead><tr><th>Session</th><th>Trades</th><th>Wins</th><th>Win Rate</th></tr></thead>
+            <tbody>
+              {[
+                {label:"London", trades:londonTrades, wins:londonWins},
+                {label:"NY",     trades:nyTrades,     wins:nyWins},
+              ].map(s => {
+                const wr = s.trades ? (s.wins/s.trades*100).toFixed(1) : null;
+                return <tr key={s.label}>
+                  <td style={{color:C.blue,fontWeight:700}}>{s.label}</td>
+                  <td>{s.trades}</td>
+                  <td style={{color:C.green}}>{s.wins}</td>
+                  <td style={{color:wr!=null?(parseFloat(wr)>=55?C.green:C.yellow):C.muted}}>
+                    {wr!=null ? wr+"%" : "—"}
+                  </td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+          {(londonTrades>0 && nyTrades>0) && (() => {
+            const lwr = londonWins/londonTrades;
+            const nwr = nyWins/nyTrades;
+            const better = lwr >= nwr ? "London" : "NY";
+            const diff = Math.abs(lwr-nwr)*100;
+            return <div style={{marginTop:12,padding:"8px 10px",background:C.surf,borderRadius:5,fontSize:11,color:C.muted}}>
+              💡 <span style={{color:C.text}}>{better}</span> session outperforming by{" "}
+              <span style={{color:C.green}}>{diff.toFixed(1)}%</span> win rate.
+              {diff > 10 && <span style={{color:C.yellow}}> Consider reducing lot size in the weaker session.</span>}
+            </div>;
+          })()}
+        </Card>
+      </div>
+
+      {/* Halt events */}
+      {halts.length > 0 && <Card>
+        <SectionLabel text={`Risk halt events (${halts.length}) — days the bot hit its drawdown limit`}/>
+        <table>
+          <thead><tr><th>Date</th><th>Symbol</th><th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Score</th></tr></thead>
+          <tbody>{halts.map((r,i)=><tr key={i}>
+            <td style={{color:C.red,whiteSpace:"nowrap"}}>{r.Date}</td>
+            <td style={{color:C.blue,fontWeight:700}}>{r.Symbol}</td>
+            <td>{r.Trades}</td>
+            <td style={{color:C.yellow}}>{r.WinRate}%</td>
+            <td style={{color:clr(parseFloat(r.NetProfit)),fontWeight:700}}>
+              {(parseFloat(r.NetProfit||0)>=0?"+":"")+fmtUSD(parseFloat(r.NetProfit||0))}
+            </td>
+            <td style={{color:parseFloat(r.AvgScore||0)>=6.5?C.green:C.yellow}}>{r.AvgScore}</td>
+          </tr>)}
+          </tbody>
+        </table>
+        <div style={{marginTop:10,padding:"8px 10px",background:C.surf,borderRadius:5,fontSize:11,color:C.muted}}>
+          💡 Halt events show when daily drawdown protection fired. High-halt symbols may need tighter score filters or smaller lot sizes.
+        </div>
+      </Card>}
+
+      {/* Daily log */}
+      <Card>
+        <SectionLabel text="Daily log (newest first)"/>
+        <div style={{overflowX:"auto",maxHeight:420,overflowY:"auto"}}>
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Symbol</th><th>Trades</th><th>W / L</th>
+              <th>Win Rate</th><th>Net P&L</th><th>Prof Factor</th>
+              <th>London WR</th><th>NY WR</th><th>Avg Score</th><th>Halt</th>
+            </tr></thead>
+            <tbody>{[...days].sort((a,b)=>a.Date<b.Date?1:-1).map((r,i)=>{
+              const halted = (r.HaltOccurred||"").toUpperCase()==="YES";
+              return <tr key={i} style={halted?{background:C.red+"10"}:{}}>
+                <td style={{color:C.muted,whiteSpace:"nowrap"}}>{r.Date}</td>
+                <td style={{color:C.blue,fontWeight:700}}>{r.Symbol}</td>
+                <td>{r.Trades}</td>
+                <td>{r.Wins} / {r.Losses}</td>
+                <td style={{color:parseFloat(r.WinRate)>=55?C.green:C.yellow}}>{r.WinRate}%</td>
+                <td style={{color:clr(parseFloat(r.NetProfit)),fontWeight:700}}>
+                  {(parseFloat(r.NetProfit||0)>=0?"+":"")+fmtUSD(parseFloat(r.NetProfit||0))}
+                </td>
+                <td style={{color:parseFloat(r.ProfitFactor)>=1.4?C.green:C.red}}>{r.ProfitFactor}</td>
+                <td style={{color:C.muted}}>{parseInt(r.LondonTrades||0)>0 ? r.LondonWR+"%" : "—"}</td>
+                <td style={{color:C.muted}}>{parseInt(r.NYTrades||0)>0 ? r.NYWR+"%" : "—"}</td>
+                <td style={{color:parseFloat(r.AvgScore||0)>=6.5?C.green:C.yellow}}>{r.AvgScore}</td>
+                <td><Badge text={r.HaltOccurred} color={halted?C.red:C.green}/></td>
+              </tr>;
+            })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </>}
+  </div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 4: PROP RULES
+// ═══════════════════════════════════════════════════════════════
+const FIRMS = [
+  {name:"FTMO",        daily:"5% / 10%",  maxdd:"10% / 20%", consist:"None",   ok:true, dl:5.0,  md:10.0},
+  {name:"E8 Markets",  daily:"3–9.2%",    maxdd:"4–14%",     consist:"35% cap",ok:true, dl:4.0,  md:8.0},
+  {name:"FundedNext",  daily:"5%",        maxdd:"10%",       consist:"None",   ok:true, dl:5.0,  md:10.0},
+  {name:"The5ers",     daily:"5%",        maxdd:"10%",       consist:"None",   ok:true, dl:5.0,  md:10.0},
+  {name:"FunderPro",   daily:"Varies",    maxdd:"Varies",    consist:"None",   ok:true, dl:5.0,  md:10.0},
+];
+const FAIL_REASONS = [
+  {title:"Daily DD breach",      desc:"71% of failures — our 3% limit builds a 2% buffer below 5% firm limit", c:C.red},
+  {title:"Max DD breach",        desc:"Second most common — 8% leaves 2% buffer below 10% firm limit",          c:C.red},
+  {title:"Consistency rule",     desc:"One lucky oversized trade = too large % of total profits (E8 35% cap)",   c:C.yellow},
+  {title:"Mass-distributed EA",  desc:"Firms detect copy-traded bots by comment patterns — ISP uses unique score-based comments", c:C.yellow},
+  {title:"Trading through news", desc:"High-impact events = random large moves — ISP has 15/30 min news gate",  c:C.muted},
+  {title:"Fixed lot sizing",     desc:"Ignores volatility, blows up in fast markets — ISP uses ATR-based sizing",c:C.muted},
+];
+
+function PropTab({compliance}) {
+  const our = compliance?.firms?.our_settings;
+
+  return <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    {/* Our settings vs firm rules */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      <Card glow={C.green}>
+        <SectionLabel text="Our EA settings — challenge config"/>
+        {[
+          ["Risk per trade",   "0.5% equity (Half-Kelly = 0.25% effective)"],
+          ["Daily loss limit", "3.0% (firm allows 5% — 2% safety buffer)"],
+          ["Max DD limit",     "8.0% (firm allows 10% — 2% safety buffer)"],
+          ["Max open trades",  "2 (prevents correlated exposure)"],
+          ["Position sizing",  "ATR-based, reduces at 50%/75% daily limit"],
+          ["Trailing stop",    "Chandelier 2.5× ATR (no martingale)"],
+          ["News filter",      "Block ±15/30 min around high-impact events"],
+          ["Session filter",   "London 08:00-11:00 + NY 13:00-16:00 UTC"],
+        ].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",
+          padding:"7px 0",borderBottom:`1px solid ${C.border}40`,fontSize:11}}>
+          <span style={{color:C.dim}}>{k}</span>
+          <span style={{color:C.text,fontWeight:700,textAlign:"right",maxWidth:"55%"}}>{v}</span>
+        </div>)}
+      </Card>
+      <Card>
+        <SectionLabel text="Common EA failure reasons on challenges"/>
+        {FAIL_REASONS.map(f=><div key={f.title}
+          style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${C.border}40`}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:f.c,flexShrink:0,marginTop:3}}/>
+          <div>
+            <div style={{fontSize:12,fontWeight:600,color:C.text}}>{f.title}</div>
+            <div style={{fontSize:10,color:C.dim,lineHeight:1.5}}>{f.desc}</div>
+          </div>
+        </div>)}
+      </Card>
+    </div>
+
+    {/* Firm compatibility table */}
+    <Card>
+      <SectionLabel text="Prop firm compatibility — our settings vs firm rules"/>
+      <table>
+        <thead><tr>
+          <th>Firm</th><th>EA Allowed</th><th>Their Daily / Max DD</th>
+          <th>Consistency</th><th>Our Daily Limit</th><th>Our Max DD</th><th>Status</th>
+        </tr></thead>
+        <tbody>{FIRMS.map((f,i)=>{
+          const firmComp = compliance?.firms;
+          const key = f.name.replace(" ","_");
+          const fc = firmComp?.[key];
+          const pass = fc ? fc.overall_pass : (3.0 < f.dl);
+          return <tr key={i}>
+            <td style={{color:C.blue,fontWeight:700}}>{f.name}</td>
+            <td style={{color:C.green}}>✓ Yes</td>
+            <td style={{color:C.dim}}>{f.daily} / {f.maxdd}</td>
+            <td style={{color:C.dim}}>{f.consist}</td>
+            <td style={{color:C.green}}>3.0%</td>
+            <td style={{color:C.green}}>8.0%</td>
+            <td><Badge text={pass?"PASS":"CHECK"} color={pass?C.green:C.yellow}/></td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </Card>
+
+    {/* Recommendation */}
+    <div style={{background:"#00E67610",border:`1px solid #00E67640`,borderRadius:8,padding:16,
+      fontSize:12,color:C.green,lineHeight:1.7}}>
+      <strong>Recommended first challenge:</strong> E8 Markets — most EA-friendly rules, EOD drawdown
+      (measured at market close, not intraday peak), customizable DD tiers, and allows algorithmic trading.
+      Start with $5,000 or $10,000 to validate the EA on a live funded environment before scaling.
+    </div>
+  </div>;
+}
+
+// ── Mount ─────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
